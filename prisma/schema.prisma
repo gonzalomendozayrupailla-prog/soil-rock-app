@@ -1,0 +1,392 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enums
+
+enum RolUsuario {
+  gerente
+  ingeniero_residente
+  administrativo
+  campo
+}
+
+enum FaseProyecto {
+  pre_proyecto
+  propuesta
+  negociacion
+  adjudicado
+  en_pausa
+  ejecucion
+  cierre
+  cerrado
+  cancelado
+}
+
+enum EstadoDocumento {
+  borrador
+  enviado_cliente
+  con_observaciones
+  aprobado
+  pendiente_revision
+  revisado
+}
+
+enum TipoActividad {
+  nota
+  documento_recibido
+  documento_enviado
+  llamada
+  reunion
+  cambio_fase
+  propuesta_enviada
+  observacion_cliente
+}
+
+enum PrioridadTarea {
+  baja
+  media
+  alta
+}
+
+enum EstadoTarea {
+  pendiente
+  en_progreso
+  completada
+}
+
+enum EstadoValorizacion {
+  en_elaboracion
+  enviada_cliente
+  aprobada
+  facturada
+}
+
+enum EstadoFactura {
+  emitida
+  cobrada
+  vencida
+  anulada
+}
+
+enum EstadoGarantia {
+  retenida
+  en_gestion
+  recuperada
+}
+
+enum TipoGarantia {
+  fiel_cumplimiento
+  garantia_tecnica
+  retencion_contractual
+}
+
+// Models
+
+model Usuario {
+  id            String     @id @default(cuid())
+  nombre        String
+  correo        String     @unique
+  password_hash String
+  rol           RolUsuario
+  permisos      Json
+  activo        Boolean    @default(true)
+  created_at    DateTime   @default(now())
+
+  proyectos_asignados Proyecto[]        @relation("IngenieroProyecto")
+  documentos_subidos  Documento[]       @relation("SubidoPor")
+  actividades         Actividad[]       @relation("RegistradoPor")
+  tareas_asignadas    Tarea[]           @relation("TareasAsignadas")
+  tareas_creadas      Tarea[]           @relation("TareasCreadas")
+  comentarios_tarea   ComentarioTarea[] @relation("ComentariosTarea")
+  reportes_campo      ReporteCampo[]    @relation("ReportesCampo")
+  auditoria_logs      AuditoriaLog[]    @relation("AuditoriaLogs")
+
+  @@map("usuarios")
+}
+
+model Cliente {
+  id           String   @id @default(cuid())
+  razon_social String
+  ruc          String   @unique
+  sector       String
+  direccion    String
+  created_at   DateTime @default(now())
+
+  contactos ContactoCliente[]
+  proyectos Proyecto[]
+
+  @@map("clientes")
+}
+
+model ContactoCliente {
+  id         String  @id @default(cuid())
+  cliente_id String
+  nombre     String
+  cargo      String
+  email      String
+  telefono   String
+  activo     Boolean @default(true)
+
+  cliente Cliente @relation(fields: [cliente_id], references: [id])
+
+  @@map("contactos_cliente")
+}
+
+model Proyecto {
+  id                    String       @id @default(cuid())
+  codigo                String       @unique
+  nombre                String
+  cliente_id            String
+  sector                String
+  fase                  FaseProyecto
+  ingeniero_id          String
+  fecha_inicio          DateTime
+  fecha_cierre_estimada DateTime
+  monto_contrato        Decimal      @default(0)
+  avance_general        Decimal      @default(0)
+  created_at            DateTime     @default(now())
+
+  cliente        Cliente        @relation(fields: [cliente_id], references: [id])
+  ingeniero      Usuario        @relation("IngenieroProyecto", fields: [ingeniero_id], references: [id])
+  documentos     Documento[]
+  actividades    Actividad[]
+  tareas         Tarea[]
+  reportes_campo ReporteCampo[]
+  valorizaciones Valorizacion[]
+  facturas       Factura[]
+  garantias      Garantia[]
+
+  @@map("proyectos")
+}
+
+model Documento {
+  id           String          @id @default(cuid())
+  proyecto_id  String
+  tipo         String
+  nombre       String
+  version      String
+  estado       EstadoDocumento
+  url          String
+  subido_por   String
+  es_interno   Boolean         @default(false)
+  fase_subida  String?
+  fecha_subida DateTime        @default(now())
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+  subido   Usuario  @relation("SubidoPor", fields: [subido_por], references: [id])
+
+  @@map("documentos")
+}
+
+model Actividad {
+  id          String        @id @default(cuid())
+  proyecto_id String
+  usuario_id  String
+  tipo        TipoActividad
+  descripcion String
+  created_at  DateTime      @default(now())
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+  usuario  Usuario  @relation("RegistradoPor", fields: [usuario_id], references: [id])
+
+  @@map("actividades")
+}
+
+// Tareas
+
+model Tarea {
+  id           String         @id @default(cuid())
+  proyecto_id  String
+  titulo       String
+  descripcion  String?
+  seccion      String         @default("Sin seccion")
+  asignado_a   String?
+  creado_por   String
+  fecha_limite DateTime?
+  estado       EstadoTarea    @default(pendiente)
+  prioridad    PrioridadTarea @default(media)
+  orden        Int            @default(0)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  proyecto    Proyecto          @relation(fields: [proyecto_id], references: [id])
+  asignado    Usuario?          @relation("TareasAsignadas", fields: [asignado_a], references: [id])
+  creador     Usuario           @relation("TareasCreadas", fields: [creado_por], references: [id])
+  subtareas   Subtarea[]
+  comentarios ComentarioTarea[]
+
+  @@map("tareas")
+}
+
+model Subtarea {
+  id         String   @id @default(cuid())
+  tarea_id   String
+  titulo     String
+  completada Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  tarea Tarea @relation(fields: [tarea_id], references: [id], onDelete: Cascade)
+
+  @@map("subtareas")
+}
+
+model ComentarioTarea {
+  id         String   @id @default(cuid())
+  tarea_id   String
+  usuario_id String
+  contenido  String
+  created_at DateTime @default(now())
+
+  tarea   Tarea   @relation(fields: [tarea_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation("ComentariosTarea", fields: [usuario_id], references: [id])
+
+  @@map("comentarios_tarea")
+}
+
+// Campo
+
+model ReporteCampo {
+  id             String   @id @default(cuid())
+  proyecto_id    String
+  usuario_id     String
+  fecha          DateTime
+  descripcion    String
+  clima          String
+  incidente      Boolean  @default(false)
+  desc_incidente String?
+  created_at     DateTime @default(now())
+
+  proyecto Proyecto        @relation(fields: [proyecto_id], references: [id])
+  usuario  Usuario         @relation("ReportesCampo", fields: [usuario_id], references: [id])
+  personal PersonalCampo[]
+  equipos  EquipoCampo[]
+
+  @@map("reportes_campo")
+}
+
+model PersonalCampo {
+  id         String @id @default(cuid())
+  reporte_id String
+  nombre     String
+  rol        String
+  horas      Int
+
+  reporte ReporteCampo @relation(fields: [reporte_id], references: [id], onDelete: Cascade)
+
+  @@map("personal_campo")
+}
+
+model EquipoCampo {
+  id         String @id @default(cuid())
+  reporte_id String
+  tipo       String
+  horas      Int
+
+  reporte ReporteCampo @relation(fields: [reporte_id], references: [id], onDelete: Cascade)
+
+  @@map("equipos_campo")
+}
+
+// Valorizaciones
+
+model Valorizacion {
+  id             String             @id @default(cuid())
+  proyecto_id    String
+  numero         Int
+  periodo_inicio DateTime
+  periodo_fin    DateTime
+  estado         EstadoValorizacion @default(en_elaboracion)
+  monto_total    Decimal            @default(0)
+  created_at     DateTime           @default(now())
+  updated_at     DateTime           @updatedAt
+
+  proyecto Proyecto              @relation(fields: [proyecto_id], references: [id])
+  partidas PartidaValorizacion[]
+  facturas Factura[]
+
+  @@map("valorizaciones")
+}
+
+model PartidaValorizacion {
+  id              String  @id @default(cuid())
+  valorizacion_id String
+  letra           String
+  descripcion     String
+  unidad          String
+  metrado         Decimal
+  precio_unitario Decimal
+  avance_pct      Decimal @default(0)
+  monto           Decimal @default(0)
+
+  valorizacion Valorizacion @relation(fields: [valorizacion_id], references: [id], onDelete: Cascade)
+
+  @@map("partidas_valorizacion")
+}
+
+// Facturacion
+
+model Factura {
+  id                String        @id @default(cuid())
+  proyecto_id       String
+  valorizacion_id   String?
+  numero            String
+  monto             Decimal
+  fecha_emision     DateTime
+  fecha_vencimiento DateTime
+  estado            EstadoFactura @default(emitida)
+  retencion_pct     Decimal       @default(0)
+  monto_neto        Decimal       @default(0)
+  metodo_pago       String?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  proyecto     Proyecto      @relation(fields: [proyecto_id], references: [id])
+  valorizacion Valorizacion? @relation(fields: [valorizacion_id], references: [id])
+
+  @@map("facturas")
+}
+
+// Garantias
+
+model Garantia {
+  id                String         @id @default(cuid())
+  proyecto_id       String
+  tipo              TipoGarantia
+  monto             Decimal
+  porcentaje        Decimal
+  fecha_vencimiento DateTime
+  estado            EstadoGarantia @default(retenida)
+  documento_url     String?
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+
+  @@map("garantias")
+}
+
+// Auditoria
+
+model AuditoriaLog {
+  id          String   @id @default(cuid())
+  usuario_id  String
+  accion      String
+  tabla       String
+  registro_id String?
+  detalle     Json?
+  ip          String?
+  created_at  DateTime @default(now())
+
+  usuario Usuario @relation("AuditoriaLogs", fields: [usuario_id], references: [id])
+
+  @@map("auditoria_logs")
+}

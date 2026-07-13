@@ -1,0 +1,13 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Geological strata layers — symbol of geotechnical engineering -->
+  <!-- Layer 1: Topsoil -->
+  <path d="M5 12 C9 9.5 13 14 18 12 C23 10 27 14 31 12" stroke="#004aad" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <!-- Layer 2: Subsoil -->
+  <path d="M5 18 C9 15.5 13 20 18 18 C23 16 27 20 31 18" stroke="#0ca3df" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <!-- Layer 3: Rock -->
+  <path d="M5 24 C9 21.5 13 26 18 24 C23 22 27 26 31 24" stroke="#004aad" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.45"/>
+  <!-- Borehole / drill -->
+  <line x1="18" y1="6" x2="18" y2="28" stroke="#004aad" stroke-width="1.6" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+  <!-- Core tip -->
+  <circle cx="18" cy="29" r="2" fill="#004aad"/>
+</svg>

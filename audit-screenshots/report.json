@@ -1,0 +1,38 @@
+[
+  {
+    "type": "OK",
+    "msg": "Dashboard cargado → http://localhost:3000/dashboard"
+  },
+  {
+    "type": "OK",
+    "msg": "Columna kanban \"Contacto\" visible"
+  },
+  {
+    "type": "WARN",
+    "msg": "Columna kanban \"Propuesta\" NO visible"
+  },
+  {
+    "type": "OK",
+    "msg": "Columna kanban \"Negociación\" visible"
+  },
+  {
+    "type": "OK",
+    "msg": "Columna kanban \"Adjudicado\" visible"
+  },
+  {
+    "type": "OK",
+    "msg": "Sección \"En pausa\" visible"
+  },
+  {
+    "type": "WARN",
+    "msg": "Kanban vacío — no hay oportunidades creadas para testear"
+  },
+  {
+    "type": "WARN",
+    "msg": "Oportunidades canceladas no tienen sección visible en Pipeline"
+  },
+  {
+    "type": "WARN",
+    "msg": "No hay proyectos en la lista (adjudicado o posterior)"
+  }
+]
