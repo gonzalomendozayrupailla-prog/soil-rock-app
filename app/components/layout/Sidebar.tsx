@@ -12,6 +12,7 @@ import {
   IconCheckbox,
   IconUserCog,
 } from '@tabler/icons-react'
+import { usePuede } from '@/app/lib/session-context'
 
 interface NavItem {
   label: string
@@ -64,12 +65,15 @@ function getInitials(nombre: string) {
 }
 
 interface SidebarProps {
-  user?: { nombre: string; rol: string } | null
+  user?: { nombre: string; rol: string; permisos?: Record<string, boolean> } | null
 }
 
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const verDashboard = usePuede('ver_dashboard')
+  const verProyectos = usePuede('ver_proyectos')
+  const verComercial = usePuede('ver_comercial')
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -139,7 +143,14 @@ export default function Sidebar({ user }: SidebarProps) {
             >
               {section.title}
             </span>
-            {section.items.map((item) => {
+            {section.items.filter((item) => {
+              if (item.href === '/dashboard') return verDashboard
+              if (item.href === '/dashboard/proyectos') return verProyectos
+              if (item.href === '/dashboard/pipeline') return verComercial
+              if (item.href === '/dashboard/clientes') return verComercial
+              if (item.href === '/dashboard/usuarios') return user?.rol === 'gerente'
+              return true
+            }).map((item) => {
               const active = isActive(item.href)
               return (
                 <Link

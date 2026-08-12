@@ -29,21 +29,17 @@ const PERMISOS_LIST = [
   { key: 'subir_documentos',      label: 'Subir documentos' },
   { key: 'ver_reportes_campo',    label: 'Ver reportes campo' },
   { key: 'editar_reportes_campo', label: 'Editar reportes campo' },
-  { key: 'ver_valorizaciones',    label: 'Ver valorizaciones' },
-  { key: 'editar_valorizaciones', label: 'Editar valorizaciones' },
-  { key: 'ver_facturas',          label: 'Ver facturas' },
-  { key: 'ver_garantias',         label: 'Ver garantias' },
   { key: 'ver_dashboard',         label: 'Ver dashboard' },
   { key: 'ver_montos',            label: 'Ver montos' },
+  { key: 'ver_comercial',         label: 'Ver sección comercial' },
 ]
 
 const PERMISOS_DEFAULT: Record<string, boolean> = {
   ver_proyectos: true, editar_proyectos: false,
   ver_documentos: true, subir_documentos: false,
   ver_reportes_campo: true, editar_reportes_campo: false,
-  ver_valorizaciones: true, editar_valorizaciones: false,
-  ver_facturas: false, ver_garantias: false,
   ver_dashboard: true, ver_montos: false,
+  ver_comercial: true,
 }
 
 export default function UsuariosPage() {

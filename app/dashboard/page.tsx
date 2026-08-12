@@ -1,6 +1,8 @@
 import React from 'react'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { prisma } from '@/app/lib/prisma'
+import { verifyToken } from '@/app/lib/session'
 import {
   IconBriefcase2,
   IconFolderOpen,
@@ -49,10 +51,18 @@ const TIPO_ICON: Record<string, React.ReactNode> = {
   observacion_cliente: <IconNotes size={13} strokeWidth={1.6} />,
 }
 
-function formatMonto(n: number) {
-  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `S/ ${(n / 1_000).toFixed(0)}K`
-  return `S/ ${n.toLocaleString('es-PE')}`
+function formatMonto(n: number, moneda = 'PEN') {
+  const simbolo = moneda === 'USD' ? 'US$' : 'S/'
+  if (n >= 1_000_000) return `${simbolo} ${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${simbolo} ${(n / 1_000).toFixed(0)}K`
+  return `${simbolo} ${n.toLocaleString('es-PE')}`
+}
+
+function formatMontoAdjudicados(pen: number, usd: number): string {
+  const parts: string[] = []
+  if (pen > 0) parts.push(formatMonto(pen, 'PEN'))
+  if (usd > 0) parts.push(formatMonto(usd, 'USD'))
+  return parts.length > 0 ? parts.join(' + ') : 'S/ 0'
 }
 
 function timeAgo(date: Date) {
@@ -69,6 +79,12 @@ function timeAgo(date: Date) {
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
+  const cookieStore = await cookies()
+  const token = cookieStore.get('token')?.value
+  const session = token ? await verifyToken(token) : null
+  const verMontos = session?.permisos?.ver_montos !== false
+  const verComercial = session?.permisos?.ver_comercial !== false
+
   const PIPELINE_FASES = ['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa'] as const
   const OP_FASES = ['adjudicado', 'ejecucion', 'cierre'] as const
 
@@ -78,6 +94,7 @@ export default async function DashboardPage() {
     actividadesRecientes,
     totalClientes,
     totalDocumentos,
+    adjudicadosMonto,
   ] = await Promise.all([
     // Pipeline: count + sum per fase
     prisma.proyecto.groupBy({
@@ -112,6 +129,15 @@ export default async function DashboardPage() {
     }),
     prisma.cliente.count(),
     prisma.documento.count(),
+    prisma.proyecto.findMany({
+      where: {
+        OR: [
+          { fase: { in: ['adjudicado', 'ejecucion', 'cierre', 'cerrado'] } },
+          { fase: 'cancelado', monto_contrato: { gt: 0 } },
+        ],
+      },
+      select: { monto_contrato: true, moneda: true },
+    }),
   ])
 
   // Aggregate pipeline stats
@@ -125,6 +151,14 @@ export default async function DashboardPage() {
   )
 
   const enEjecucion = proyectosActivos.filter((p) => p.fase === 'ejecucion').length
+
+  const adjPEN = adjudicadosMonto
+    .filter((p) => p.moneda === 'PEN')
+    .reduce((acc, p) => acc + Number(p.monto_contrato), 0)
+  const adjUSD = adjudicadosMonto
+    .filter((p) => p.moneda === 'USD')
+    .reduce((acc, p) => acc + Number(p.monto_contrato), 0)
+  const adjCount = adjudicadosMonto.length
 
   // Pipeline order for display
   const PIPELINE_ORDER = ['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa']
@@ -142,6 +176,8 @@ export default async function DashboardPage() {
       href: '/dashboard/pipeline',
       color: '#004aad',
       bg: '#e8f0fd',
+      requireMontos: false,
+      requireComercial: true,
     },
     {
       label: 'Proyectos en ejecución',
@@ -151,6 +187,8 @@ export default async function DashboardPage() {
       href: '/dashboard/proyectos',
       color: '#0ca3df',
       bg: '#e0f4fc',
+      requireMontos: false,
+      requireComercial: false,
     },
     {
       label: 'Valor del pipeline',
@@ -160,17 +198,32 @@ export default async function DashboardPage() {
       href: '/dashboard/pipeline',
       color: '#3b6d11',
       bg: '#eaf3de',
+      requireMontos: true,
+      requireComercial: true,
     },
     {
       label: 'Clientes',
       value: totalClientes,
-      sub: `${totalDocumentos} documentos`,
+      sub: verMontos ? `${totalDocumentos} documentos` : 'Registrados',
       icon: <IconUsers size={18} strokeWidth={1.6} />,
       href: '/dashboard/clientes',
       color: '#854f0b',
       bg: '#faeeda',
+      requireMontos: false,
+      requireComercial: true,
     },
-  ]
+    {
+      label: 'Monto adjudicado',
+      value: formatMontoAdjudicados(adjPEN, adjUSD),
+      sub: `${adjCount} proyecto${adjCount !== 1 ? 's' : ''} adjudicado${adjCount !== 1 ? 's' : ''}`,
+      icon: <IconCircleDot size={18} strokeWidth={1.6} />,
+      href: '/dashboard/pipeline',
+      color: '#3b6d11',
+      bg: '#eaf3de',
+      requireMontos: true,
+      requireComercial: true,
+    },
+  ].filter((c) => (!c.requireMontos || verMontos) && (!c.requireComercial || verComercial))
 
   return (
     <div style={{ padding: 28, maxWidth: 1100 }}>
@@ -188,7 +241,7 @@ export default async function DashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: 14,
           marginBottom: 22,
         }}
@@ -230,10 +283,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Main grid: Pipeline + Proyectos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: verComercial ? '1fr 1fr' : '1fr', gap: 14, marginBottom: 14 }}>
 
         {/* Pipeline por fase */}
-        <div
+        {verComercial && <div
           style={{
             backgroundColor: '#ffffff',
             border: '0.5px solid #e8eaed',
@@ -273,7 +326,7 @@ export default async function DashboardPage() {
                       </span>
                       <span style={{ fontSize: 12, color: '#1a1d1e', fontWeight: 500 }}>{count}</span>
                     </div>
-                    {monto > 0 && (
+                    {verMontos && monto > 0 && (
                       <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatMonto(monto)}</span>
                     )}
                   </div>
@@ -292,7 +345,7 @@ export default async function DashboardPage() {
               )
             })}
           </div>
-        </div>
+        </div>}
 
         {/* Proyectos activos */}
         <div
@@ -404,8 +457,12 @@ export default async function DashboardPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {actividadesRecientes.map((a) => (
-              <div
+              <Link
                 key={a.id}
+                href={`/dashboard/proyectos/${a.proyecto.id}`}
+                style={{ textDecoration: 'none' }}
+              >
+              <div
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -442,6 +499,7 @@ export default async function DashboardPage() {
                   {timeAgo(a.created_at)}
                 </span>
               </div>
+              </Link>
             ))}
           </div>
         )}
