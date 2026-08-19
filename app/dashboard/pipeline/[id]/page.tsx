@@ -51,6 +51,7 @@ export default async function PipelineDetallePage({
     nombre: proyecto.nombre,
     sector: proyecto.sector,
     fase: proyecto.fase,
+    moneda: proyecto.moneda,
     monto_contrato: Number(proyecto.monto_contrato),
     avance_general: Number(proyecto.avance_general),
     fecha_inicio: proyecto.fecha_inicio.toISOString(),

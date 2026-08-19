@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
+import { requireAuth } from '@/app/lib/auth'
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; subtareaId: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { subtareaId } = await params
     const body = await req.json()
     const data: Record<string, unknown> = {}
@@ -21,10 +25,13 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; subtareaId: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { subtareaId } = await params
     await prisma.subtarea.delete({ where: { id: subtareaId } })
     return NextResponse.json({ ok: true })

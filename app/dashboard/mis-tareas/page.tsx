@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
-  IconCircle, IconCircleCheck, IconAlertTriangle, IconFolderOpen,
+  IconCircle, IconCircleCheck, IconCircleDot, IconAlertTriangle, IconFolderOpen,
 } from '@tabler/icons-react'
 
 interface Proyecto { id: string; nombre: string; codigo: string }
@@ -69,6 +70,7 @@ function agrupar(tareas: Tarea[]): Record<Grupo, Tarea[]> {
 }
 
 export default function MisTareasPage() {
+  const router = useRouter()
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [loading, setLoading] = useState(true)
   const [agrupadoPor, setAgrupadoPor] = useState<'fecha' | 'proyecto' | 'prioridad'>('fecha')
@@ -81,7 +83,9 @@ export default function MisTareasPage() {
   }, [])
 
   async function toggleEstado(tarea: Tarea) {
-    const nuevoEstado = tarea.estado === 'completada' ? 'pendiente' : 'completada'
+    const nuevoEstado = tarea.estado === 'pendiente' ? 'en_progreso'
+      : tarea.estado === 'en_progreso' ? 'completada'
+      : 'pendiente'
     const res = await fetch(`/api/tareas/${tarea.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -102,16 +106,18 @@ export default function MisTareasPage() {
     return (
       <div
         key={t.id}
+        onClick={() => router.push(`/dashboard/proyectos/${t.proyecto.id}?tab=tareas`)}
         style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
           borderBottom: '0.5px solid #f4f6f8',
+          cursor: 'pointer',
         }}
       >
         <button
-          onClick={() => toggleEstado(t)}
+          onClick={(e) => { e.stopPropagation(); toggleEstado(t) }}
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, color: t.estado === 'completada' ? '#3b6d11' : '#d1d5db' }}
         >
-          {t.estado === 'completada' ? <IconCircleCheck size={16} /> : <IconCircle size={16} />}
+          {t.estado === 'completada' ? <IconCircleCheck size={16} /> : t.estado === 'en_progreso' ? <IconCircleDot size={16} /> : <IconCircle size={16} />}
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -129,7 +135,7 @@ export default function MisTareasPage() {
               </span>
             )}
           </div>
-          <Link href={`/dashboard/proyectos/${t.proyecto.id}`} style={{ textDecoration: 'none' }}>
+          <Link href={`/dashboard/proyectos/${t.proyecto.id}`} onClick={(e) => e.stopPropagation()} style={{ textDecoration: 'none' }}>
             <span style={{ fontSize: 11, color: '#004aad', display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
               <IconFolderOpen size={11} /> {t.proyecto.codigo} — {t.proyecto.nombre}
             </span>

@@ -1,20 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
-export function AgregarContactoForm({ clienteId }: { clienteId: string }) {
-  const router = useRouter()
+interface Contacto {
+  id: string
+  nombre: string
+  cargo: string
+  email: string
+  telefono: string
+  activo: boolean
+}
+
+export function AgregarContactoForm({
+  clienteId,
+  onAdded,
+}: {
+  clienteId: string
+  onAdded: (contacto: Contacto) => void
+}) {
   const [abierto, setAbierto] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [form, setForm] = useState({
-    nombre: '',
-    cargo: '',
-    email: '',
-    telefono: '',
-  })
+  const [form, setForm] = useState({ nombre: '', cargo: '', email: '', telefono: '' })
 
   function set(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -39,8 +47,9 @@ export function AgregarContactoForm({ clienteId }: { clienteId: string }) {
       })
 
       if (res.ok) {
+        const nuevo = await res.json()
+        onAdded(nuevo)
         cancelar()
-        router.refresh()
       } else {
         const data = await res.json()
         setError(data.error ?? 'Error al agregar contacto')
@@ -52,11 +61,26 @@ export function AgregarContactoForm({ clienteId }: { clienteId: string }) {
     }
   }
 
+  const inp: React.CSSProperties = {
+    padding: '7px 10px', fontSize: 12,
+    border: '0.5px solid #e8eaed', borderRadius: 6, outline: 'none',
+    color: '#1a1d1e', boxSizing: 'border-box', width: '100%',
+    backgroundColor: '#ffffff',
+  }
+
+  const lbl: React.CSSProperties = {
+    fontSize: 11, fontWeight: 500, color: '#9ca3af', display: 'block', marginBottom: 3,
+  }
+
   if (!abierto) {
     return (
       <button
         onClick={() => setAbierto(true)}
-        className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+        style={{
+          fontSize: 12, fontWeight: 500, color: '#004aad',
+          padding: '5px 12px', borderRadius: 6,
+          border: '0.5px solid #004aad', background: 'none', cursor: 'pointer',
+        }}
       >
         + Agregar contacto
       </button>
@@ -64,83 +88,47 @@ export function AgregarContactoForm({ clienteId }: { clienteId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-      <h3 className="mb-3 text-sm font-semibold text-zinc-700">Nuevo contacto</h3>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="c-nombre" className="text-xs font-medium text-zinc-600">
-              Nombre <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="c-nombre"
-              type="text"
-              required
-              value={form.nombre}
-              onChange={(e) => set('nombre', e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
-            />
+    <div style={{ backgroundColor: '#f9fafb', border: '0.5px solid #e8eaed', borderRadius: 8, padding: 16, marginTop: 12, width: '100%' }}>
+      <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e', margin: '0 0 12px' }}>Nuevo contacto</h3>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div>
+            <label style={lbl}>Nombre *</label>
+            <input type="text" required value={form.nombre} onChange={(e) => set('nombre', e.target.value)} style={inp} />
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="c-cargo" className="text-xs font-medium text-zinc-600">
-              Cargo <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="c-cargo"
-              type="text"
-              required
-              placeholder="Ej: Gerente de Proyectos"
-              value={form.cargo}
-              onChange={(e) => set('cargo', e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
-            />
+          <div>
+            <label style={lbl}>Cargo *</label>
+            <input type="text" required placeholder="Ej: Gerente de Proyectos" value={form.cargo} onChange={(e) => set('cargo', e.target.value)} style={inp} />
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="c-email" className="text-xs font-medium text-zinc-600">
-              Email <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="c-email"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
-            />
+          <div>
+            <label style={lbl}>Email *</label>
+            <input type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} style={inp} />
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="c-telefono" className="text-xs font-medium text-zinc-600">
-              Teléfono <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="c-telefono"
-              type="tel"
-              required
-              placeholder="Ej: 999 123 456"
-              value={form.telefono}
-              onChange={(e) => set('telefono', e.target.value)}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
-            />
+          <div>
+            <label style={lbl}>Teléfono *</label>
+            <input type="tel" required placeholder="Ej: 999 123 456" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} style={inp} />
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p style={{ fontSize: 12, color: '#a32d2d', margin: '0 0 8px' }}>{error}</p>}
 
-        <div className="flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
+            style={{
+              fontSize: 12, fontWeight: 500, padding: '6px 16px',
+              backgroundColor: '#004aad', color: '#ffffff',
+              border: 'none', borderRadius: 6, cursor: 'pointer',
+              opacity: loading ? 0.6 : 1,
+            }}
           >
             {loading ? 'Guardando...' : 'Guardar contacto'}
           </button>
           <button
             type="button"
             onClick={cancelar}
-            className="text-sm text-zinc-500 hover:text-zinc-900"
+            style={{ fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             Cancelar
           </button>

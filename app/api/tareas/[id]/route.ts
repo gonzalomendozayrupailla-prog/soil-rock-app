@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
+import { requireAuth } from '@/app/lib/auth'
+
+async function recalcularAvance(proyectoId: string) {
+  const tareas = await prisma.tarea.findMany({
+    where: { proyecto_id: proyectoId },
+    select: { estado: true },
+  })
+  const total = tareas.length
+  const completadas = tareas.filter((t) => t.estado === 'completada').length
+  const avance = total > 0 ? Math.round((completadas / total) * 100) : 0
+  await prisma.proyecto.update({ where: { id: proyectoId }, data: { avance_general: avance } })
+}
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth(req)
+  if (error) return error
+
   const { id } = await params
   const tarea = await prisma.tarea.findUnique({
     where: { id },
@@ -28,6 +43,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { id } = await params
     const body = await req.json()
 
@@ -54,6 +72,9 @@ export async function PATCH(
         },
       },
     })
+    if (body.estado !== undefined) {
+      await recalcularAvance(tarea.proyecto_id)
+    }
     return NextResponse.json(tarea)
   } catch (err) {
     console.error('[PATCH /api/tareas/[id]]', err)
@@ -62,12 +83,17 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { id } = await params
+    const tarea = await prisma.tarea.findUnique({ where: { id }, select: { proyecto_id: true } })
     await prisma.tarea.delete({ where: { id } })
+    if (tarea) await recalcularAvance(tarea.proyecto_id)
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[DELETE /api/tareas/[id]]', err)

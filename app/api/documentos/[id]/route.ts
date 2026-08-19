@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { requireAuth } from '@/app/lib/auth'
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { id } = await params
 
     const documento = await prisma.documento.findUnique({ where: { id } })
@@ -35,6 +39,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { id } = await params
     const body = await req.json()
 

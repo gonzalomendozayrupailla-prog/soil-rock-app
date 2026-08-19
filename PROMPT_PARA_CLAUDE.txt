@@ -1,0 +1,232 @@
+Necesito que generes DOS documentos formales basados en la siguiente descripcion tecnica de un sistema de software real. Los documentos deben estar en español, ser profesionales y detallados. A continuacion te doy todo el contexto.
+
+---
+
+# CONTEXTO DEL PROYECTO
+
+## Que es Soil Rock
+
+Soil Rock es una aplicacion web interna de gestion de proyectos de ingenieria (estudios de suelos, geotecnia, mecanica de rocas). La empresa ejecuta proyectos en sectores como mineria, construccion, energia e infraestructura en Peru. La app reemplaza el uso de Excel y correo electronico para gestionar el ciclo de vida completo de un proyecto: desde la oportunidad comercial hasta el cierre y cobro.
+
+## Stack Tecnico
+
+- Frontend: Next.js 16.2 con App Router y Turbopack, React 19, TypeScript
+- Estilos: Tailwind CSS v4 + estilos inline en componentes
+- Iconos: @tabler/icons-react
+- ORM: Prisma 7.8 con cliente generado en app/generated/prisma
+- Base de datos: PostgreSQL en Supabase
+- Almacenamiento de archivos: Supabase Storage
+- Plataforma de deploy: (por definir, actualmente desarrollo local)
+
+---
+
+# ARQUITECTURA DEL SISTEMA
+
+## Capas de la aplicacion
+
+1. FRONTEND (Next.js Pages + React Components)
+   - app/dashboard/** → paginas del dashboard
+   - app/components/ → componentes reutilizables (ProyectoView, Tabs)
+
+2. API LAYER (Next.js Route Handlers)
+   - app/api/proyectos/ → CRUD de proyectos
+   - app/api/proyectos/[id]/ → detalle, edicion, cambio de fase
+   - app/api/proyectos/[id]/documentos/ → gestion de documentos
+   - app/api/proyectos/[id]/carpetas/ → gestion de carpetas
+   - app/api/carpetas/ → operaciones sobre carpetas
+   - app/api/proyectos/[id]/documentos/metadata/ → metadatos de documentos
+
+3. BACKEND / ORM
+   - Prisma como ORM sobre PostgreSQL
+   - Migraciones versionadas en prisma/migrations/
+
+4. ALMACENAMIENTO
+   - Supabase Storage para archivos fisicos (PDFs, planos, imagenes)
+   - La BD solo guarda la URL del archivo
+
+## Estructura de rutas (Next.js App Router)
+
+/ → redirect a /login
+/login → autenticacion
+/dashboard → KPIs generales
+/dashboard/pipeline → kanban de oportunidades comerciales
+/dashboard/pipeline/[id] → detalle de oportunidad
+/dashboard/proyectos → lista de proyectos operativos
+/dashboard/proyectos/[id] → detalle de proyecto (usa ProyectoView)
+/dashboard/proyectos/nuevo → crear nuevo proyecto
+/dashboard/clientes → lista de clientes
+/dashboard/clientes/[id] → detalle de cliente + contactos
+/dashboard/mis-tareas → tareas asignadas al usuario actual
+/dashboard/usuarios → administracion de usuarios
+
+## Componente central: ProyectoView
+
+El componente ProyectoView.tsx es el nucleo de la aplicacion. Renderiza la vista de un proyecto con tabs que varian segun la fase:
+
+- FASE PIPELINE (pre_proyecto, propuesta, negociacion, adjudicado, en_pausa):
+  Tabs: Info General | Tareas | Documentos | Actividad
+
+- FASE OPERATIVA (adjudicado, ejecucion, cierre, cerrado, cancelado):
+  Tabs: Info General | Tareas | Documentos | Actividad | Ingenieria | Ejecucion
+  (Valorizaciones y Facturacion: codigo existente pero tabs ocultos, en desarrollo)
+
+---
+
+# MODELO DE DATOS (Prisma / PostgreSQL)
+
+## Enums
+
+- RolUsuario: gerente | ingeniero_residente | administrativo | campo
+- FaseProyecto: pre_proyecto | propuesta | negociacion | adjudicado | en_pausa | ejecucion | cierre | cerrado | cancelado
+- EstadoDocumento: borrador | enviado_cliente | con_observaciones | aprobado | pendiente_revision | revisado
+- TipoActividad: nota | documento_recibido | documento_enviado | llamada | reunion | cambio_fase | propuesta_enviada | observacion_cliente
+- PrioridadTarea: baja | media | alta
+- EstadoTarea: pendiente | en_progreso | completada
+- EstadoValorizacion: en_elaboracion | enviada_cliente | aprobada | facturada
+- EstadoFactura: emitida | cobrada | vencida | anulada
+- EstadoGarantia: retenida | en_gestion | recuperada
+- TipoGarantia: fiel_cumplimiento | garantia_tecnica | retencion_contractual
+
+## Modelos principales
+
+Usuario: id, nombre, correo, password_hash, rol (RolUsuario), permisos (Json), activo, created_at
+
+Cliente: id, razon_social, ruc (unique), sector, direccion, created_at
+ContactoCliente: id, cliente_id FK, nombre, cargo, email, telefono, activo
+
+Proyecto: id, codigo (unique, formato SR{YY}.{NNN} ej: SR26.058), nombre, cliente_id FK, sector, fase (FaseProyecto), moneda (PEN|USD), ingeniero_id FK, fecha_inicio, fecha_cierre_estimada, monto_contrato, avance_general, created_at
+
+CarpetaDocumento: id, proyecto_id FK, nombre, modulo (documentos|ingenieria|ejecucion), created_at
+Documento: id, proyecto_id FK, carpeta_id FK (nullable), tipo, nombre, version, estado (EstadoDocumento), url, subido_por FK, es_interno, fase_subida, fecha_subida
+
+Actividad: id, proyecto_id FK, usuario_id FK, tipo (TipoActividad), descripcion, created_at
+
+Tarea: id, proyecto_id FK, titulo, descripcion, seccion, asignado_a FK (nullable), creado_por FK, fecha_limite, estado (EstadoTarea), prioridad (PrioridadTarea), orden, created_at, updated_at
+Subtarea: id, tarea_id FK, titulo, completada
+ComentarioTarea: id, tarea_id FK, usuario_id FK, contenido
+
+ReporteCampo: id, proyecto_id FK, usuario_id FK, fecha, descripcion, clima, incidente (bool), desc_incidente
+PersonalCampo: id, reporte_id FK, nombre, rol, horas
+EquipoCampo: id, reporte_id FK, tipo, horas
+
+Valorizacion: id, proyecto_id FK, numero, periodo_inicio, periodo_fin, estado (EstadoValorizacion), monto_total
+PartidaValorizacion: id, valorizacion_id FK, letra, descripcion, unidad, metrado, precio_unitario, avance_pct, monto
+
+Factura: id, proyecto_id FK, valorizacion_id FK (nullable), numero, monto, fecha_emision, fecha_vencimiento, estado (EstadoFactura), retencion_pct, monto_neto, metodo_pago
+
+Garantia: id, proyecto_id FK, tipo (TipoGarantia), monto, porcentaje, fecha_vencimiento, estado (EstadoGarantia), documento_url
+
+AuditoriaLog: id, usuario_id FK, accion, tabla, registro_id, detalle (Json), ip, created_at
+
+---
+
+# CICLO DE VIDA DEL PROYECTO (flujo de fases)
+
+pre_proyecto → propuesta → negociacion → adjudicado → ejecucion → cierre → cerrado
+                                        ↓
+                                     en_pausa ↔ adjudicado
+En cualquier punto antes de ejecucion: → cancelado
+
+Reglas:
+- Las fases pre_proyecto hasta en_pausa se gestionan desde el modulo Pipeline (vista kanban)
+- Desde adjudicado en adelante se activan los tabs operativos (Ingenieria, Ejecucion)
+- El campo "codigo" se asigna al momento de crear el proyecto con formato SR{YY}.{NNN}
+
+---
+
+# FLUJO DE DOCUMENTOS
+
+1. El usuario sube un archivo → va a Supabase Storage → se crea registro en BD con la URL
+2. El documento puede estar en una carpeta (carpeta_id) o suelto (carpeta_id = null)
+3. Las carpetas tienen un modulo: "documentos" (creadas por el usuario), "ingenieria" (3 secciones fijas con nombre sugerido ETIS: {codigo}_ETIS_{NombreProyecto}_V00), "ejecucion" (reportes de campo + documentos de operaciones)
+4. Estado del documento evoluciona: borrador → enviado_cliente → con_observaciones / aprobado → etc.
+
+---
+
+# FLUJO FINANCIERO (en desarrollo)
+
+Ejecucion en campo
+→ Reporte de Campo (registro diario: personal, equipos, clima, incidentes)
+→ Valorizacion (agrupacion de avance por periodo con partidas y metrados)
+   → estados: en_elaboracion → enviada_cliente → aprobada → facturada
+→ Factura vinculada a la valorizacion
+   → estados: emitida → cobrada / vencida / anulada
+→ Garantias: fiel_cumplimiento, garantia_tecnica, retencion_contractual
+   → estados: retenida → en_gestion → recuperada
+
+---
+
+# ESTADO ACTUAL DEL DESARROLLO
+
+## Modulos funcionales (implementados y en uso):
+- Autenticacion / Login: ~90%
+- Dashboard con KPIs: ~85%
+- Pipeline (CRM / kanban): ~80%
+- Proyectos operativos (lista + detalle): ~75%
+- Tab Documentos (carpetas, upload, gestion): ~90%
+- Tab Ingenieria (3 secciones fijas, nomenclatura ETIS): ~85%
+- Tab Ejecucion (reportes de campo + documentos de operaciones): ~80%
+- Tab Tareas (CRUD, subtareas, prioridad): ~85%
+- Tab Actividad (log de acciones del proyecto): ~80%
+- Clientes (CRUD basico + contactos): ~70%
+- Mis Tareas (vista personal del usuario): ~70%
+
+## Modulos en desarrollo (WIP — codigo existe, UI oculta):
+- Tab Valorizaciones: ~40% — modelo BD completo, UI parcial
+- Tab Facturacion: ~30% — modelo BD completo, UI parcial
+
+## Modulos pendientes (solo modelo BD, sin UI):
+- Garantias: ~10%
+- Auditoria de acciones: ~10%
+- Administracion de usuarios y roles: ~50%
+- Notificaciones: 0%
+- Reportes exportables (PDF/Excel): 0%
+- Permisos granulares por proyecto: 0%
+
+---
+
+# CONVENCIONES DEL PROYECTO
+
+- Codigo de proyecto: SR{YY}.{NNN} — ej: SR26.058
+- Moneda: PEN (S/) o USD (US$), se muestra con simbolo correcto en toda la UI
+- Nomenclatura ET (Especificacion Tecnica): {codigo}_ETIS_{NombreProyecto}_V00
+- Estilos: los componentes en app/components/ usan estilos inline, no clases Tailwind
+- Iconos: siempre de @tabler/icons-react
+- Los tabs de Valorizaciones y Facturacion estan en el codigo pero ocultos hasta completarlos
+
+---
+
+FIN DEL CONTEXTO
+
+---
+
+# INSTRUCCIONES PARA TI (Claude)
+
+Con toda la informacion anterior, genera DOS documentos separados y completos:
+
+## DOCUMENTO 1: Documento de Arquitectura Tecnica
+
+Debe incluir:
+- Resumen ejecutivo del sistema
+- Stack tecnologico con justificacion de cada eleccion
+- Diagrama de capas (descrito en texto/ASCII si es necesario)
+- Descripcion detallada de cada capa (Frontend, API, ORM, BD, Storage)
+- Estructura de modulos y responsabilidades
+- Modelo de datos: descripcion de cada entidad y sus relaciones
+- Flujos principales del sistema (ciclo de proyecto, documentos, financiero)
+- Decisiones de arquitectura tomadas y sus razones
+- Dependencias externas (Supabase, Prisma, etc.)
+- Consideraciones de seguridad actuales y pendientes
+
+## DOCUMENTO 2: Roadmap de Desarrollo
+
+Debe incluir:
+- Estado actual resumido por modulo (con porcentaje de avance)
+- Backlog priorizado: que falta construir, en que orden y por que
+- Fases de desarrollo sugeridas (corto, mediano, largo plazo)
+- Dependencias entre modulos (que debe estar listo antes de que)
+- Riesgos tecnicos identificados
+- Criterios de "listo para produccion"
+- Sugerencias de mejora tecnica (performance, seguridad, UX)
+
+Formato: Markdown profesional, con encabezados claros, tablas donde aplique, y lenguaje tecnico apropiado para un equipo de desarrollo. Fecha de referencia: Julio 2026.

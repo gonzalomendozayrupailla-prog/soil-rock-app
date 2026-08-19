@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { IconPlus, IconX, IconPlayerPause, IconPlayerPlay, IconRocket, IconChevronDown, IconChevronRight } from '@tabler/icons-react'
+import { usePuede } from '@/app/lib/session-context'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ interface Oportunidad {
   nombre: string
   fase: string
   sector: string
+  moneda: string
   monto_contrato: number
   created_at: string
   cliente: { razon_social: string }
@@ -22,6 +24,7 @@ interface Perdida {
   codigo: string
   nombre: string
   sector: string
+  moneda: string
   monto_contrato: number
   created_at: string
   cliente: { razon_social: string }
@@ -48,22 +51,23 @@ const COLUMNAS = [
   { fase: 'pre_proyecto', label: 'Contacto',           color: '#6b7280' },
   { fase: 'propuesta',    label: 'Propuesta enviada',  color: '#0c6a8c' },
   { fase: 'negociacion',  label: 'Negociación',        color: '#854f0b' },
-  { fase: 'adjudicado',   label: 'Adjudicado',         color: '#3b6d11' },
+
 ] as const
 
-const SECTORES = ['Minería', 'Construcción', 'Energía', 'Infraestructura', 'Industrial', 'Otro']
+const SECTORES = ['Minería', 'Construcción', 'Energía', 'Oil & Gas', 'Infraestructura', 'Industria', 'Gobierno', 'Otro']
 
 function diasDesde(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-function formatMonto(n: number) {
-  return n.toLocaleString('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 0 })
+function formatMonto(n: number, moneda = 'PEN') {
+  const simbolo = moneda === 'USD' ? 'US$' : 'S/'
+  return `${simbolo} ${n.toLocaleString('es-PE', { maximumFractionDigits: 0 })}`
 }
 
-function montoLabel(n: number) {
-  return n > 0 ? formatMonto(n) : 'Por definir'
+function montoLabel(n: number, moneda = 'PEN') {
+  return n > 0 ? formatMonto(n, moneda) : 'Por definir'
 }
 
 // ─── Card ────────────────────────────────────────────────────────────────────
@@ -81,6 +85,7 @@ function KanbanCard({
 }) {
   const [showMontoInput, setShowMontoInput] = useState(false)
   const [montoInput, setMontoInput] = useState('')
+  const verMontos = usePuede('ver_montos')
   const dias = diasDesde(op.created_at)
   const busy = loading === op.id
 
@@ -119,9 +124,11 @@ function KanbanCard({
         <span style={{ fontSize: 11, color: '#5b5b5b', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
           {op.sector}
         </span>
-        <span style={{ fontSize: 11, color: op.monto_contrato > 0 ? '#5b5b5b' : '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
-          {montoLabel(op.monto_contrato)}
-        </span>
+        {verMontos && (
+          <span style={{ fontSize: 11, color: op.monto_contrato > 0 ? '#5b5b5b' : '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
+            {montoLabel(op.monto_contrato, op.moneda)}
+          </span>
+        )}
         <span style={{ fontSize: 11, color: '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
           {dias === 0 ? 'Hoy' : `${dias}d`}
         </span>
@@ -154,7 +161,7 @@ function KanbanCard({
               min="0"
               step="0.01"
               autoFocus
-              placeholder="Monto del contrato (S/)"
+              placeholder={`Monto del contrato (${op.moneda === 'USD' ? 'US$' : 'S/'})`}
               value={montoInput}
               onChange={(e) => setMontoInput(e.target.value)}
               style={{
@@ -251,6 +258,7 @@ function NuevaOportunidadModal({
     nombre: '',
     cliente_id: '',
     sector: '',
+    moneda: 'PEN',
     monto_contrato: '',
     fecha_inicio: new Date().toISOString().slice(0, 10),
   })
@@ -316,8 +324,8 @@ function NuevaOportunidadModal({
 
   async function handleGuardarCliente() {
     const { razon_social, ruc, sector, direccion } = nuevoClienteForm
-    if (!razon_social || !ruc || !sector || !direccion) {
-      setClienteError('Completa todos los campos del cliente')
+    if (!razon_social || !ruc || !sector) {
+      setClienteError('Completa los campos requeridos del cliente')
       return
     }
     setSavingCliente(true)
@@ -326,7 +334,7 @@ function NuevaOportunidadModal({
       const res = await fetch('/api/clientes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ razon_social, ruc, sector, direccion }),
+        body: JSON.stringify({ razon_social, ruc, sector, direccion: direccion || null }),
       })
       if (res.ok) {
         const c = await res.json()
@@ -379,6 +387,7 @@ function NuevaOportunidadModal({
           nombre: data.nombre,
           fase: data.fase,
           sector: data.sector,
+          moneda: data.moneda ?? 'PEN',
           monto_contrato: Number(data.monto_contrato),
           created_at: data.created_at,
           cliente: { razon_social: clienteEncontrado?.razon_social ?? '' },
@@ -531,7 +540,7 @@ function NuevaOportunidadModal({
                     <input
                       value={nuevoClienteForm.direccion}
                       onChange={(e) => setNuevo('direccion', e.target.value)}
-                      placeholder="Dirección *"
+                      placeholder="Dirección (opcional)"
                       style={inputStyle}
                     />
                   </div>
@@ -689,8 +698,8 @@ function NuevaOportunidadModal({
             </div>
           )}
 
-          {/* Sector y Monto */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Sector, Moneda y Monto */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div>
               <label style={labelStyle}>Sector <span style={{ color: '#ef4444' }}>*</span></label>
               <select
@@ -705,7 +714,19 @@ function NuevaOportunidadModal({
             </div>
 
             <div>
-              <label style={labelStyle}>Monto estimado (S/)</label>
+              <label style={labelStyle}>Moneda</label>
+              <select
+                value={form.moneda}
+                onChange={(e) => set('moneda', e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="PEN">S/ PEN</option>
+                <option value="USD">US$ USD</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Monto estimado</label>
               <input
                 type="number"
                 min="0"
@@ -776,6 +797,7 @@ export default function PipelineView({
   perdidas: Perdida[]
 }) {
   const router = useRouter()
+  const verMontos = usePuede('ver_montos')
   const [ops, setOps] = useState<Oportunidad[]>(inicial)
   const [localClientes, setLocalClientes] = useState<Cliente[]>(clientes)
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -796,9 +818,10 @@ export default function PipelineView({
         }),
       })
       if (res.ok) {
+        const data = await res.json()
         if (fase === 'ejecucion') {
           setOps((prev) => prev.filter((o) => o.id !== id))
-          startTransition(() => router.push('/dashboard/proyectos'))
+          startTransition(() => router.push(`/dashboard/proyectos/${data.id}`))
         } else {
           setOps((prev) => prev.map((o) => o.id === id ? { ...o, fase } : o))
         }
@@ -831,6 +854,7 @@ export default function PipelineView({
             fase: 'negociacion',
             sector: p.sector,
             monto_contrato: p.monto_contrato,
+            moneda: p.moneda,
             created_at: p.created_at,
             cliente: p.cliente,
           },
@@ -864,7 +888,7 @@ export default function PipelineView({
           <h1 style={{ fontSize: 18, fontWeight: 500, color: '#1a1d1e', margin: 0 }}>Pipeline</h1>
           <p style={{ fontSize: 13, color: '#9ca3af', margin: '3px 0 0' }}>
             {activas.length} oportunidad{activas.length !== 1 ? 'es' : ''} activa{activas.length !== 1 ? 's' : ''}
-            {totalMonto > 0 && ` · ${formatMonto(totalMonto)} en juego`}
+            {verMontos && totalMonto > 0 && ` · ${formatMonto(totalMonto)} en juego`}
           </p>
         </div>
         <button
@@ -882,7 +906,7 @@ export default function PipelineView({
       </div>
 
       {/* Kanban */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, alignItems: 'start' }}>
         {COLUMNAS.map(({ fase, label, color }) => {
           const cards = activas.filter((o) => o.fase === fase)
           const montoCol = cards.reduce((s, o) => s + o.monto_contrato, 0)
@@ -915,7 +939,7 @@ export default function PipelineView({
                     {cards.length}
                   </span>
                 </div>
-                {montoCol > 0 && (
+                {verMontos && montoCol > 0 && (
                   <span style={{ fontSize: 11, color: '#9ca3af' }}>
                     {formatMonto(montoCol)}
                   </span>
@@ -967,7 +991,7 @@ export default function PipelineView({
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {enPausa.map((op) => {
               const dias = diasDesde(op.created_at)
               const busy = loadingId === op.id
@@ -995,9 +1019,11 @@ export default function PipelineView({
                     <span style={{ fontSize: 11, color: '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
                       {op.sector}
                     </span>
-                    <span style={{ fontSize: 11, color: '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
-                      {montoLabel(op.monto_contrato)}
-                    </span>
+                    {verMontos && (
+                      <span style={{ fontSize: 11, color: '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
+                        {montoLabel(op.monto_contrato, op.moneda)}
+                      </span>
+                    )}
                     <span style={{ fontSize: 11, color: '#9ca3af', backgroundColor: '#f4f6f8', padding: '2px 7px', borderRadius: 999 }}>
                       {dias === 0 ? 'Hoy' : `${dias}d`}
                     </span>
@@ -1075,12 +1101,14 @@ export default function PipelineView({
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280' }}>{p.nombre}</div>
                       <div style={{ fontSize: 12, color: '#9ca3af' }}>{p.cliente.razon_social}</div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#b0b7c3', marginBottom: 2 }}>Monto estimado</div>
-                      <div style={{ fontSize: 13, color: p.monto_contrato > 0 ? '#6b7280' : '#b0b7c3' }}>
-                        {p.monto_contrato > 0 ? formatMonto(p.monto_contrato) : 'Por definir'}
+                    {verMontos && (
+                      <div>
+                        <div style={{ fontSize: 11, color: '#b0b7c3', marginBottom: 2 }}>Monto estimado</div>
+                        <div style={{ fontSize: 13, color: p.monto_contrato > 0 ? '#6b7280' : '#b0b7c3' }}>
+                          {p.monto_contrato > 0 ? formatMonto(p.monto_contrato, p.moneda) : 'Por definir'}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div>
                       <div style={{ fontSize: 11, color: '#b0b7c3', marginBottom: 2 }}>Motivo</div>
                       <div style={{ fontSize: 12, color: '#6b7280' }}>{p.motivo_perdida ?? '—'}</div>

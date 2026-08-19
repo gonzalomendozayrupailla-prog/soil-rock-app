@@ -1,16 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { verifyToken } from '@/app/lib/session'
+import { requireAuth } from '@/app/lib/auth'
 
 const FASES_PIPELINE = ['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa'] as const
 
-export async function GET() {
-  const oportunidades = await prisma.proyecto.findMany({
-    where: { fase: { in: [...FASES_PIPELINE] } },
-    include: { cliente: { select: { razon_social: true } } },
-    orderBy: { created_at: 'desc' },
+export async function GET(req: NextRequest) {
+  const { error } = await requireAuth(req)
+  if (error) return error
+
+  const { searchParams } = req.nextUrl
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10)))
+  const skip = (page - 1) * limit
+
+  const where = { fase: { in: [...FASES_PIPELINE] } }
+
+  const [data, total] = await Promise.all([
+    prisma.proyecto.findMany({
+      where,
+      include: { cliente: { select: { razon_social: true } } },
+      orderBy: { created_at: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.proyecto.count({ where }),
+  ])
+
+  return NextResponse.json({
+    data,
+    total,
+    page,
+    limit,
+    pages: Math.ceil(total / limit),
   })
-  return NextResponse.json(oportunidades)
 }
 
 export async function POST(req: NextRequest) {
@@ -21,20 +44,21 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await req.json()
-    const { nombre, cliente_id, sector, monto_contrato, fecha_inicio } = body
+    const { nombre, cliente_id, sector, monto_contrato, fecha_inicio, moneda } = body
 
     if (!nombre || !cliente_id || !sector || !fecha_inicio) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
-    // Código correlativo
+    // Código correlativo SR{YY}.{NNN}
     const todos = await prisma.proyecto.findMany({ select: { codigo: true } })
     const maxNum = todos.reduce((max, p) => {
-      const num = parseInt(p.codigo.split('-')[2] ?? '0', 10)
+      const parts = p.codigo.split('.')
+      const num = parseInt(parts[1] ?? '0', 10)
       return Math.max(max, isNaN(num) ? 0 : num)
     }, 0)
-    const year = new Date().getFullYear()
-    const codigo = `GEO-${year}-${String(maxNum + 1).padStart(3, '0')}`
+    const year2 = String(new Date().getFullYear()).slice(-2)
+    const codigo = `SR${year2}.${String(maxNum + 1).padStart(3, '0')}`
 
     // ingeniero_id = usuario de sesión, con fallback al primer usuario activo
     let ingenieroId = session.id
@@ -56,6 +80,7 @@ export async function POST(req: NextRequest) {
         cliente_id,
         sector,
         fase: 'pre_proyecto',
+        moneda: moneda ?? 'PEN',
         ingeniero_id: ingenieroId,
         fecha_inicio: fechaInicio,
         fecha_cierre_estimada: fechaCierre,

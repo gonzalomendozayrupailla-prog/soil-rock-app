@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { IconPlus, IconX, IconCheck, IconPencil } from '@tabler/icons-react'
+import { IconPlus, IconX, IconCheck, IconPencil, IconTrash } from '@tabler/icons-react'
 
 interface Usuario {
   id: string; nombre: string; correo: string; rol: string
@@ -48,10 +48,13 @@ export default function UsuariosPage() {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingPermisos, setEditingPermisos] = useState<Record<string, boolean>>({})
+  const [deleteModal, setDeleteModal] = useState<{ id: string; nombre: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  // Form nueva usuario
+  // Form nuevo usuario
   const [form, setForm] = useState({
-    nombre: '', correo: '', password: '', rol: 'ingeniero_residente',
+    nombre: '', correo: '', rol: 'ingeniero_residente',
     permisos: { ...PERMISOS_DEFAULT },
   })
   const [saving, setSaving] = useState(false)
@@ -68,8 +71,8 @@ export default function UsuariosPage() {
   }, [])
 
   async function handleCreate() {
-    if (!form.nombre || !form.correo || !form.password) {
-      setFormError('Nombre, correo y contrasena son requeridos'); return
+    if (!form.nombre || !form.correo) {
+      setFormError('Nombre y correo son requeridos'); return
     }
     setSaving(true); setFormError('')
     try {
@@ -82,7 +85,7 @@ export default function UsuariosPage() {
       if (!res.ok) { setFormError(data.error || 'Error al crear usuario'); return }
       setUsuarios((prev) => [...prev, data])
       setShowForm(false)
-      setForm({ nombre: '', correo: '', password: '', rol: 'ingeniero_residente', permisos: { ...PERMISOS_DEFAULT } })
+      setForm({ nombre: '', correo: '', rol: 'ingeniero_residente', permisos: { ...PERMISOS_DEFAULT } })
     } finally {
       setSaving(false)
     }
@@ -113,7 +116,19 @@ export default function UsuariosPage() {
     }
   }
 
-  const [editingPermisos, setEditingPermisos] = useState<Record<string, boolean>>({})
+  async function handleDelete() {
+    if (!deleteModal) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/usuarios/${deleteModal.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setUsuarios((prev) => prev.filter((u) => u.id !== deleteModal.id))
+        setDeleteModal(null)
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   function startEditPermisos(u: Usuario) {
     setEditingId(u.id)
@@ -126,6 +141,7 @@ export default function UsuariosPage() {
   }
 
   return (
+    <>
     <div style={{ padding: 28, maxWidth: 900 }}>
       <div style={{ marginBottom: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
@@ -153,12 +169,8 @@ export default function UsuariosPage() {
               <input value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} style={inp} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: '#9ca3af', display: 'block', marginBottom: 4 }}>Correo *</label>
-              <input type="email" value={form.correo} onChange={(e) => setForm((p) => ({ ...p, correo: e.target.value }))} style={inp} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#9ca3af', display: 'block', marginBottom: 4 }}>Contrasena inicial *</label>
-              <input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} style={inp} />
+              <label style={{ fontSize: 11, color: '#9ca3af', display: 'block', marginBottom: 4 }}>Correo Gmail *</label>
+              <input type="email" value={form.correo} onChange={(e) => setForm((p) => ({ ...p, correo: e.target.value }))} style={inp} placeholder="usuario@gmail.com" />
             </div>
             <div>
               <label style={{ fontSize: 11, color: '#9ca3af', display: 'block', marginBottom: 4 }}>Rol</label>
@@ -253,6 +265,12 @@ export default function UsuariosPage() {
                     >
                       {u.activo ? 'Desactivar' : 'Activar'}
                     </button>
+                    <button
+                      onClick={() => setDeleteModal({ id: u.id, nombre: u.nombre })}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', border: 'none', backgroundColor: '#fcebeb', color: '#a32d2d' }}
+                    >
+                      <IconTrash size={12} /> Eliminar
+                    </button>
                   </div>
                 </div>
 
@@ -292,5 +310,36 @@ export default function UsuariosPage() {
         </div>
       )}
     </div>
+
+    {/* Modal confirmación eliminar */}
+    {deleteModal && (
+      <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: 12, padding: 28, maxWidth: 380, width: '100%', margin: '0 16px' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1d1e', margin: '0 0 10px' }}>
+            Eliminar usuario
+          </h3>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 24px', lineHeight: 1.5 }}>
+            ¿Estás seguro que deseas eliminar a <strong>{deleteModal.nombre}</strong>? Esta acción no se puede deshacer.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{ flex: 1, fontSize: 13, fontWeight: 600, padding: '9px 0', backgroundColor: '#a32d2d', color: '#fff', border: 'none', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}
+            >
+              {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+            </button>
+            <button
+              onClick={() => setDeleteModal(null)}
+              disabled={deleting}
+              style={{ flex: 1, fontSize: 13, padding: '9px 0', color: '#6b7280', border: '0.5px solid #e8eaed', borderRadius: 8, background: 'none', cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

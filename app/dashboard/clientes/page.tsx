@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/app/lib/prisma'
 import { IconPlus, IconUsers } from '@tabler/icons-react'
+import ExportarClientesButton from './ExportarClientesButton'
 
 export default async function ClientesPage() {
   const clientes = await prisma.cliente.findMany({
@@ -31,24 +32,27 @@ export default async function ClientesPage() {
           </p>
         </div>
 
-        <Link
-          href="/dashboard/clientes/nuevo"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            backgroundColor: '#004aad',
-            color: '#ffffff',
-            padding: '7px 14px',
-            borderRadius: 7,
-            fontSize: 13,
-            fontWeight: 500,
-            textDecoration: 'none',
-          }}
-        >
-          <IconPlus size={14} />
-          Nuevo cliente
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ExportarClientesButton />
+          <Link
+            href="/dashboard/clientes/nuevo"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              backgroundColor: '#004aad',
+              color: '#ffffff',
+              padding: '7px 14px',
+              borderRadius: 7,
+              fontSize: 13,
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+          >
+            <IconPlus size={14} />
+            Nuevo cliente
+          </Link>
+        </div>
       </div>
 
       {/* Table / Empty */}

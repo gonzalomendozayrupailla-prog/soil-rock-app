@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const SECTORES = [
+  'Minería', 'Construcción', 'Energía', 'Oil & Gas',
+  'Infraestructura', 'Industria', 'Gobierno', 'Otro',
+]
+
 export default function NuevoClientePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -46,93 +51,90 @@ export default function NuevoClientePage() {
     }
   }
 
+  const inp: React.CSSProperties = {
+    padding: '7px 10px', fontSize: 13,
+    border: '0.5px solid #e8eaed', borderRadius: 6, outline: 'none',
+    color: '#1a1d1e', boxSizing: 'border-box', width: '100%',
+  }
+
+  const lbl: React.CSSProperties = {
+    fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 5,
+  }
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <Link
-          href="/dashboard/clientes"
-          className="mb-2 inline-block text-sm text-zinc-500 hover:text-zinc-900"
-        >
-          &larr; Volver a clientes
+    <div style={{ padding: 28, maxWidth: 600 }}>
+      <div style={{ marginBottom: 24 }}>
+        <Link href="/dashboard/clientes" style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'none', display: 'inline-block', marginBottom: 8 }}>
+          ← Volver a clientes
         </Link>
-        <h1 className="text-2xl font-bold text-zinc-900">Nuevo cliente</h1>
+        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#1a1d1e', margin: 0 }}>Nuevo cliente</h1>
       </div>
 
-      <div className="max-w-lg rounded-xl border border-zinc-200 bg-white p-6">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="razon_social" className="text-sm font-medium text-zinc-700">
-              Razón social <span className="text-red-500">*</span>
-            </label>
+      <div style={{ backgroundColor: '#ffffff', border: '0.5px solid #e8eaed', borderRadius: 10, padding: 24 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={lbl}>Razón social *</label>
             <input
-              id="razon_social"
               type="text"
               required
               value={form.razon_social}
               onChange={(e) => set('razon_social', e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
+              style={inp}
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="ruc" className="text-sm font-medium text-zinc-700">
-              RUC <span className="text-red-500">*</span>
-            </label>
+          <div>
+            <label style={lbl}>RUC *</label>
             <input
-              id="ruc"
               type="text"
               required
               maxLength={11}
               placeholder="20XXXXXXXXX"
               value={form.ruc}
               onChange={(e) => set('ruc', e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
+              style={inp}
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="sector" className="text-sm font-medium text-zinc-700">
-              Sector <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="sector"
-              type="text"
+          <div>
+            <label style={lbl}>Sector *</label>
+            <select
               required
-              placeholder="Ej: Minería, Construcción, Energía..."
               value={form.sector}
               onChange={(e) => set('sector', e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
-            />
+              style={{ ...inp, cursor: 'pointer' }}
+            >
+              <option value="">Seleccionar sector...</option>
+              {SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="direccion" className="text-sm font-medium text-zinc-700">
-              Dirección <span className="text-red-500">*</span>
-            </label>
+          <div>
+            <label style={lbl}>Dirección <span style={{ fontWeight: 400, color: '#b0b7c3' }}>(opcional)</span></label>
             <input
-              id="direccion"
               type="text"
-              required
               value={form.direccion}
               onChange={(e) => set('direccion', e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800"
+              style={inp}
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p style={{ fontSize: 13, color: '#a32d2d', margin: 0 }}>{error}</p>}
 
-          <div className="flex items-center gap-3 pt-1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4 }}>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
+              style={{
+                fontSize: 13, fontWeight: 600, padding: '8px 20px',
+                backgroundColor: '#004aad', color: '#ffffff',
+                border: 'none', borderRadius: 7, cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.6 : 1,
+              }}
             >
               {loading ? 'Guardando...' : 'Crear cliente'}
             </button>
-            <Link
-              href="/dashboard/clientes"
-              className="text-sm text-zinc-500 hover:text-zinc-900"
-            >
+            <Link href="/dashboard/clientes" style={{ fontSize: 13, color: '#9ca3af', textDecoration: 'none' }}>
               Cancelar
             </Link>
           </div>

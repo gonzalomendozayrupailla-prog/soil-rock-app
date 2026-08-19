@@ -95,11 +95,13 @@ model Usuario {
   id            String     @id @default(cuid())
   nombre        String
   correo        String     @unique
-  password_hash String
+  password_hash String?
   rol           RolUsuario
   permisos      Json
   activo        Boolean    @default(true)
   created_at    DateTime   @default(now())
+  googleId      String?    @unique
+  imagen        String?
 
   proyectos_asignados Proyecto[]        @relation("IngenieroProyecto")
   documentos_subidos  Documento[]       @relation("SubidoPor")
@@ -118,7 +120,7 @@ model Cliente {
   razon_social String
   ruc          String   @unique
   sector       String
-  direccion    String
+  direccion    String?
   created_at   DateTime @default(now())
 
   contactos ContactoCliente[]
@@ -148,6 +150,7 @@ model Proyecto {
   cliente_id            String
   sector                String
   fase                  FaseProyecto
+  moneda                String       @default("PEN")
   ingeniero_id          String
   fecha_inicio          DateTime
   fecha_cierre_estimada DateTime
@@ -155,22 +158,39 @@ model Proyecto {
   avance_general        Decimal      @default(0)
   created_at            DateTime     @default(now())
 
-  cliente        Cliente        @relation(fields: [cliente_id], references: [id])
-  ingeniero      Usuario        @relation("IngenieroProyecto", fields: [ingeniero_id], references: [id])
+  cliente        Cliente            @relation(fields: [cliente_id], references: [id])
+  ingeniero      Usuario            @relation("IngenieroProyecto", fields: [ingeniero_id], references: [id])
   documentos     Documento[]
+  carpetas       CarpetaDocumento[]
   actividades    Actividad[]
   tareas         Tarea[]
-  reportes_campo ReporteCampo[]
-  valorizaciones Valorizacion[]
+  reportes_campo   ReporteCampo[]
+  reportes_anclaje   ReporteAnclaje[]
+  reportes_inyeccion ReporteInyeccion[]
+  valorizaciones     Valorizacion[]
   facturas       Factura[]
   garantias      Garantia[]
 
   @@map("proyectos")
 }
 
+model CarpetaDocumento {
+  id          String   @id @default(cuid())
+  proyecto_id String
+  nombre      String
+  modulo      String   @default("documentos")
+  created_at  DateTime @default(now())
+
+  proyecto   Proyecto    @relation(fields: [proyecto_id], references: [id])
+  documentos Documento[]
+
+  @@map("carpetas_documento")
+}
+
 model Documento {
   id           String          @id @default(cuid())
   proyecto_id  String
+  carpeta_id   String?
   tipo         String
   nombre       String
   version      String
@@ -181,8 +201,9 @@ model Documento {
   fase_subida  String?
   fecha_subida DateTime        @default(now())
 
-  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
-  subido   Usuario  @relation("SubidoPor", fields: [subido_por], references: [id])
+  proyecto Proyecto          @relation(fields: [proyecto_id], references: [id])
+  carpeta  CarpetaDocumento? @relation(fields: [carpeta_id], references: [id])
+  subido   Usuario           @relation("SubidoPor", fields: [subido_por], references: [id])
 
   @@map("documentos")
 }
@@ -294,6 +315,80 @@ model EquipoCampo {
   reporte ReporteCampo @relation(fields: [reporte_id], references: [id], onDelete: Cascade)
 
   @@map("equipos_campo")
+}
+
+// Reportes de Anclaje
+
+model ReporteAnclaje {
+  id                     String   @id @default(cuid())
+  proyecto_id            String
+  codigo                 String
+  version                String
+  fecha                  DateTime
+  ubicacion              String   @default("")
+  metodologia            String   @default("")
+  sistema                String   @default("")
+  martillo_dth           String   @default("")
+  diametro_casing        String   @default("")
+  descripcion_suelo      String?
+  observaciones          String?
+  perforadora_hidraulica String?
+  compresora_aire        String?
+  supervisor             String?
+  oper_perforista        String?
+  oper_compresorista     String?
+  oficial_1              String?
+  ayudante_1             String?
+  ayudante_2             String?
+  anclajes_perforados    Int      @default(0)
+  anclajes_acumulados    Int      @default(0)
+  anclajes               Json     @default("[]")
+  logo_sr_path           String?
+  logo_cliente_path      String?
+  supervisor_obra        String?
+  ingeniero_civil        String?
+  esquema_path           String?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+
+  @@map("reportes_anclaje")
+}
+
+// Reportes de Inyección
+
+model ReporteInyeccion {
+  id                  String   @id @default(cuid())
+  proyecto_id         String
+  codigo              String
+  version             String
+  fecha               DateTime
+  ubicacion           String   @default("")
+  metodologia         String   @default("")
+  fluido              String   @default("")
+  cemento             String   @default("")
+  aditivo             String   @default("")
+  descripcion_suelo   String?
+  observaciones       String?
+  central_inyeccion   String?
+  supervisor          String?
+  oper_perforista     String?
+  oper_inyeccion      String?
+  anclajes_inyectados Int      @default(0)
+  anclajes_acumulados Int      @default(0)
+  anclajes            Json     @default("[]")
+  logo_sr_path        String?
+  logo_cliente_path   String?
+  esquema_path        String?
+  supervisor_sr       String?
+  supervisor_cliente  String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+
+  @@map("reportes_inyeccion")
 }
 
 // Valorizaciones

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { verifyToken } from '@/app/lib/session'
+import { requireAuth } from '@/app/lib/auth'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth(req)
+  if (error) return error
+
   const { id } = await params
   const tareas = await prisma.tarea.findMany({
     where: { proyecto_id: id },
@@ -67,6 +71,16 @@ export async function POST(
         comentarios: { include: { usuario: { select: { id: true, nombre: true } } } },
       },
     })
+
+    // Recalcular avance_general al agregar tarea
+    const todasTareas = await prisma.tarea.findMany({
+      where: { proyecto_id },
+      select: { estado: true },
+    })
+    const total = todasTareas.length
+    const completadas = todasTareas.filter((t) => t.estado === 'completada').length
+    const avance = total > 0 ? Math.round((completadas / total) * 100) : 0
+    await prisma.proyecto.update({ where: { id: proyecto_id }, data: { avance_general: avance } })
 
     return NextResponse.json(tarea, { status: 201 })
   } catch (err) {

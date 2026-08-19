@@ -71,6 +71,35 @@ export default function TabTareas({
   })
   const [saving, setSaving] = useState(false)
 
+  // Board quick add
+  const [boardAddEstado, setBoardAddEstado] = useState<string | null>(null)
+  const [boardAddTitulo, setBoardAddTitulo] = useState('')
+
+  async function handleBoardQuickAdd(estado: string) {
+    if (!boardAddTitulo.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/proyectos/${proyectoId}/tareas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titulo: boardAddTitulo,
+          estado,
+          seccion: SECCIONES_DEFAULT[0],
+          prioridad: 'media',
+        }),
+      })
+      if (res.ok) {
+        const nueva = await res.json()
+        setTareas((prev) => [...prev, nueva])
+        setBoardAddTitulo('')
+        setBoardAddEstado(null)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Panel lateral
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -243,16 +272,55 @@ export default function TabTareas({
             const col = tareas.filter((t) => t.estado === estado)
             return (
               <div key={estado} style={{ backgroundColor: '#f9fafb', borderRadius: 8, padding: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: s.bg, color: s.color }}>
-                    {s.label}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#9ca3af' }}>{col.length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 999, backgroundColor: s.bg, color: s.color }}>
+                      {s.label}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#9ca3af' }}>{col.length}</span>
+                  </div>
+                  <button
+                    onClick={() => { setBoardAddEstado(estado); setBoardAddTitulo('') }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2, display: 'flex', alignItems: 'center' }}
+                    title="Agregar tarea"
+                  >
+                    <IconPlus size={14} />
+                  </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {col.map((t) => (
                     <TarjetaBoard key={t.id} tarea={t} onSelect={() => setSelectedId(t.id)} />
                   ))}
+                  {boardAddEstado === estado && (
+                    <div style={{ backgroundColor: '#ffffff', border: '0.5px solid #e8eaed', borderRadius: 7, padding: '8px 10px' }}>
+                      <input
+                        autoFocus
+                        value={boardAddTitulo}
+                        onChange={(e) => setBoardAddTitulo(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleBoardQuickAdd(estado)
+                          if (e.key === 'Escape') setBoardAddEstado(null)
+                        }}
+                        placeholder="Título de la tarea..."
+                        style={{ width: '100%', fontSize: 12, border: 'none', outline: 'none', marginBottom: 6, boxSizing: 'border-box' }}
+                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => handleBoardQuickAdd(estado)}
+                          disabled={!boardAddTitulo.trim() || saving}
+                          style={{ fontSize: 11, padding: '3px 10px', backgroundColor: '#004aad', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+                        >
+                          Agregar
+                        </button>
+                        <button
+                          onClick={() => setBoardAddEstado(null)}
+                          style={{ fontSize: 11, padding: '3px 8px', color: '#6b7280', border: '0.5px solid #e8eaed', borderRadius: 5, background: 'none', cursor: 'pointer' }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )

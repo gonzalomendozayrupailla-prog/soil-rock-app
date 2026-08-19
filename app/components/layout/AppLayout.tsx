@@ -1,30 +1,15 @@
-import Sidebar from './Sidebar'
+import LayoutClient from './LayoutClient'
+import { SessionProvider } from '@/app/lib/session-context'
 
 interface AppLayoutProps {
   children: React.ReactNode
-  user?: { nombre: string; rol: string } | null
+  user?: { nombre: string; rol: string; permisos: Record<string, boolean> } | null
 }
 
 export default function AppLayout({ children, user }: AppLayoutProps) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100vh',
-        overflow: 'hidden',
-        backgroundColor: '#f4f6f8',
-      }}
-    >
-      <Sidebar user={user} />
-      <main
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          minWidth: 0,
-        }}
-      >
-        {children}
-      </main>
-    </div>
+    <SessionProvider user={user ?? null}>
+      <LayoutClient user={user}>{children}</LayoutClient>
+    </SessionProvider>
   )
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/app/lib/session'
 import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { isAllowedExtension } from '@/app/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,9 +10,24 @@ export async function POST(req: NextRequest) {
     const session = await verifyToken(token)
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const { filename, proyectoId } = await req.json()
+    const { filename, proyectoId, fileSize } = await req.json()
     if (!filename || !proyectoId) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+    }
+
+    const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
+    if (typeof fileSize === 'number' && fileSize > MAX_SIZE) {
+      return NextResponse.json(
+        { error: 'El archivo supera el límite de 50 MB.' },
+        { status: 413 }
+      )
+    }
+
+    if (!isAllowedExtension(filename)) {
+      return NextResponse.json(
+        { error: 'Tipo de archivo no permitido. Use PDF, DOC, DOCX, XLS, XLSX, JPG, PNG o DWG.' },
+        { status: 400 }
+      )
     }
 
     const ext = filename.split('.').pop() ?? ''

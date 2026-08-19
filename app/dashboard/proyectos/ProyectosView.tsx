@@ -54,7 +54,7 @@ type TabKey = (typeof TABS_DEF)[number]['key']
 
 export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<TabKey>('ejecucion')
+  const [activeTab, setActiveTab] = useState<TabKey>('todos')
   const [search, setSearch] = useState('')
 
   // Counts per tab (ignoring search, so always visible)
@@ -77,13 +77,11 @@ export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-      {/* ── Left Panel: List ─────────────────────────────────────────────── */}
+      {/* ── Project List ─────────────────────────────────────────────── */}
       <div
         style={{
-          width: 300,
-          minWidth: 300,
+          flex: 1,
           backgroundColor: '#ffffff',
-          borderRight: '0.5px solid #e8eaed',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -227,25 +225,6 @@ export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) 
             })
           )}
         </div>
-      </div>
-
-      {/* ── Right: Placeholder ───────────────────────────────────────────── */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-        }}
-      >
-        <p style={{ fontSize: 14, color: '#b0b7c3', margin: 0 }}>
-          Selecciona un proyecto para ver el detalle
-        </p>
-        <p style={{ fontSize: 12, color: '#d1d5db', margin: 0 }}>
-          O haz clic en una oportunidad adjudicada desde el Pipeline
-        </p>
       </div>
     </div>
   )

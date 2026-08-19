@@ -1,39 +1,37 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   IconArrowLeft, IconPencil, IconCheck, IconX,
   IconNote, IconPhone, IconUsers, IconFileImport,
   IconFileExport, IconArrowRight, IconSend, IconMessage,
   IconRocket, IconPlayerPause, IconPlayerPlay,
-  IconAlertTriangle, IconFileText, IconDownload, IconTrash,
+  IconAlertTriangle,
 } from '@tabler/icons-react'
+import { usePuede } from '@/app/lib/session-context'
 import TabTareas from '@/app/components/TabTareas'
-import TabCampo from '@/app/components/TabCampo'
+import TabDocumentos from '@/app/components/TabDocumentos'
+import TabIngenieria from '@/app/components/TabIngenieria'
+import TabEjecucion from '@/app/components/TabEjecucion'
 import TabValorizaciones from '@/app/components/TabValorizaciones'
 import TabFacturacion from '@/app/components/TabFacturacion'
+import TabGenerador from '@/app/components/TabGenerador'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Contacto { id: string; nombre: string; cargo: string; email: string; telefono: string }
-interface Cliente  { id: string; razon_social: string; ruc: string; sector: string; direccion: string; contactos: Contacto[] }
+interface Cliente  { id: string; razon_social: string; ruc: string; sector: string; direccion: string | null; contactos: Contacto[] }
 interface Proyecto {
   id: string; codigo: string; nombre: string; sector: string; fase: string
-  monto_contrato: number; avance_general: number
+  moneda: string; monto_contrato: number; avance_general: number
   fecha_inicio: string; fecha_cierre_estimada: string; created_at: string
   cliente: Cliente; ingeniero: { nombre: string }
 }
 interface Actividad {
   id: string; tipo: string; descripcion: string; created_at: string
   usuario: { nombre: string }
-}
-interface Documento {
-  id: string; nombre: string; tipo: string; version: string; estado: string
-  url: string; es_interno: boolean; fecha_subida: string
-  fase_subida?: string | null
-  subido: { nombre: string }
 }
 interface UsuarioSimple { id: string; nombre: string }
 interface ValorizacionSimple { id: string; numero: number }
@@ -64,21 +62,10 @@ const FASE_COLORS: Record<string, { bg: string; color: string }> = {
   cancelado:    { bg: '#fcebeb', color: '#a32d2d' },
 }
 
-const ESTADO_STYLES: Record<string, { backgroundColor: string; color: string }> = {
-  borrador:           { backgroundColor: '#f4f6f8', color: '#6b7280' },
-  enviado_cliente:    { backgroundColor: '#e0f4fc', color: '#0c6a8c' },
-  con_observaciones:  { backgroundColor: '#faeeda', color: '#854f0b' },
-  aprobado:           { backgroundColor: '#eaf3de', color: '#3b6d11' },
-  pendiente_revision: { backgroundColor: '#faeeda', color: '#854f0b' },
-  revisado:           { backgroundColor: '#eaf3de', color: '#3b6d11' },
-}
-
-// Fases que pertenecen al pipeline (kanban) — para back button y doc link
 const PIPELINE_FASES = new Set(['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa'])
-// Fases que muestran tabs operativas (Campo, Valorizaciones, Facturación)
 const FASES_CON_TABS_OP = new Set(['adjudicado', 'ejecucion', 'cierre', 'cerrado', 'cancelado'])
 
-const SECTORES = ['Minería', 'Construcción', 'Energía', 'Infraestructura', 'Industrial', 'Otro']
+const SECTORES = ['Minería', 'Construcción', 'Energía', 'Oil & Gas', 'Infraestructura', 'Industria', 'Gobierno', 'Otro']
 
 const TIPOS_ACTIVIDAD = [
   { value: 'nota',                label: 'Nota' },
@@ -112,10 +99,10 @@ const TIPO_COLOR: Record<string, string> = {
   observacion_cliente: '#dc2626',
 }
 
-function formatMonto(n: number) {
-  return n > 0
-    ? n.toLocaleString('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 0 })
-    : 'Por definir'
+function formatMonto(n: number, moneda = 'PEN') {
+  if (n <= 0) return 'Por definir'
+  const simbolo = moneda === 'USD' ? 'US$' : 'S/'
+  return `${simbolo} ${n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
 function formatDate(iso: string) {
@@ -134,13 +121,12 @@ function formatDateTime(iso: string) {
 export default function ProyectoView({
   proyecto,
   actividadesIniciales,
-  documentosIniciales,
   usuarios,
   valorizacionesIniciales,
 }: {
   proyecto: Proyecto
   actividadesIniciales: Actividad[]
-  documentosIniciales: Documento[]
+  documentosIniciales?: unknown[]
   usuarios: UsuarioSimple[]
   valorizacionesIniciales: ValorizacionSimple[]
 }) {
@@ -149,13 +135,11 @@ export default function ProyectoView({
   // ── State ─────────────────────────────────────────────────────────────────
   const [fase, setFase] = useState(proyecto.fase)
   const [monto, setMonto] = useState(proyecto.monto_contrato)
+  const [moneda, setMoneda] = useState(proyecto.moneda)
   const [nombre, setNombre] = useState(proyecto.nombre)
   const [sector, setSector] = useState(proyecto.sector)
 
   const [avance, setAvance] = useState(proyecto.avance_general)
-  const [avanceDraft, setAvanceDraft] = useState(proyecto.avance_general)
-  const [savingAvance, setSavingAvance] = useState(false)
-  const [avanceSaved, setAvanceSaved] = useState(false)
   const [fechaInicio, setFechaInicio] = useState(proyecto.fecha_inicio)
   const [fechaCierre, setFechaCierre] = useState(proyecto.fecha_cierre_estimada)
 
@@ -163,6 +147,7 @@ export default function ProyectoView({
   const [editForm, setEditForm] = useState({
     nombre: proyecto.nombre,
     sector: proyecto.sector,
+    moneda: proyecto.moneda,
     monto_contrato: proyecto.monto_contrato > 0 ? String(proyecto.monto_contrato) : '',
     fecha_inicio: proyecto.fecha_inicio.slice(0, 10),
     fecha_cierre_estimada: proyecto.fecha_cierre_estimada.slice(0, 10),
@@ -182,15 +167,17 @@ export default function ProyectoView({
   const [showMontoEjecucion, setShowMontoEjecucion] = useState(false)
   const [montoEjecucion, setMontoEjecucion] = useState('')
 
-  const [documentos, setDocumentos] = useState(documentosIniciales)
-  const [changingDocId, setChangingDocId] = useState<string | null>(null)
-  const [savingDocId, setSavingDocId] = useState<string | null>(null)
-  const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null)
-  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
-
-  const [activeTab, setActiveTab] = useState('info')
-  const [docSubTab, setDocSubTab] = useState<'cliente' | 'interno'>('cliente')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? 'info')
   const [error, setError] = useState('')
+
+  useEffect(() => { setActiveTab('info') }, [proyecto.id])
+
+  // ── Permisos ──────────────────────────────────────────────────────────────
+  const verMontos = usePuede('ver_montos')
+  const verDocumentos = usePuede('ver_documentos')
+  const verReportesCampo = usePuede('ver_reportes_campo')
+  const editarProyectos = usePuede('editar_proyectos')
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const esPipelineFase = PIPELINE_FASES.has(fase)
@@ -198,19 +185,16 @@ export default function ProyectoView({
   const backLabel = PIPELINE_FASES.has(proyecto.fase) ? 'Volver al pipeline' : 'Volver a proyectos'
   const faseBadge = FASE_COLORS[fase] ?? FASE_COLORS.pre_proyecto
 
-  const docsCliente  = documentos.filter((d) => !d.es_interno)
-  const docsInternos = documentos.filter((d) => d.es_interno)
-  const docsActivos  = docSubTab === 'cliente' ? docsCliente : docsInternos
-
   const tabs = [
-    { key: 'info',        label: 'Info' },
-    { key: 'tareas',      label: 'Tareas' },
-    { key: 'documentos',  label: 'Documentos' },
-    { key: 'actividad',   label: 'Actividad' },
+    { key: 'info',       label: 'Info' },
+    { key: 'tareas',     label: 'Tareas' },
+    ...(verDocumentos ? [{ key: 'documentos', label: 'Documentos' }] : []),
+    { key: 'actividad',  label: 'Actividad' },
     ...(FASES_CON_TABS_OP.has(fase) ? [
-      { key: 'campo',          label: 'Campo' },
-      { key: 'valorizaciones', label: 'Valorizaciones' },
-      { key: 'facturación',    label: 'Facturación' },
+      { key: 'ingenieria', label: 'Ingeniería' },
+      ...(verReportesCampo ? [{ key: 'ejecucion', label: 'Ejecución' }] : []),
+      { key: 'generador', label: 'Generador' },
+      // Valorizaciones y Facturación ocultos por ahora
     ] : []),
   ]
 
@@ -339,65 +323,6 @@ export default function ProyectoView({
     }
   }
 
-  async function handleDeleteDoc(docId: string) {
-    setDeletingDocId(docId)
-    setConfirmDeleteDocId(null)
-    try {
-      const res = await fetch(`/api/documentos/${docId}`, { method: 'DELETE' })
-      if (res.ok) {
-        setDocumentos((prev) => prev.filter((d) => d.id !== docId))
-      }
-    } finally {
-      setDeletingDocId(null)
-    }
-  }
-
-  async function handleEstadoChange(docId: string, nuevoEstado: string) {
-    const docPrev = documentos.find((d) => d.id === docId)
-    if (!docPrev || docPrev.estado === nuevoEstado) {
-      setChangingDocId(null)
-      return
-    }
-    setSavingDocId(docId)
-    setChangingDocId(null)
-    try {
-      const res = await fetch(`/api/documentos/${docId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: nuevoEstado }),
-      })
-      if (res.ok) {
-        setDocumentos((prev) =>
-          prev.map((d) => d.id === docId ? { ...d, estado: nuevoEstado } : d)
-        )
-      }
-    } finally {
-      setSavingDocId(null)
-    }
-  }
-
-  async function handleSaveAvance() {
-    const valor = Math.min(100, Math.max(0, avanceDraft))
-    setSavingAvance(true)
-    setAvanceSaved(false)
-    try {
-      const res = await fetch(`/api/proyectos/${proyecto.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avance_general: valor }),
-      })
-      if (!res.ok) { setError('Error al guardar avance'); return }
-      setAvance(valor)
-      setAvanceDraft(valor)
-      setAvanceSaved(true)
-      setTimeout(() => setAvanceSaved(false), 2500)
-    } catch {
-      setError('Error de conexión')
-    } finally {
-      setSavingAvance(false)
-    }
-  }
-
   async function handleSaveEdit() {
     setSavingEdit(true)
     setError('')
@@ -406,6 +331,7 @@ export default function ProyectoView({
       const body: Record<string, unknown> = {}
       if (editForm.nombre !== nombre)                         body.nombre = editForm.nombre
       if (editForm.sector !== sector)                         body.sector = editForm.sector
+      if (editForm.moneda !== moneda)                         body.moneda = editForm.moneda
       if (nuevoMonto !== monto)                               body.monto_contrato = nuevoMonto
       if (editForm.fecha_inicio !== fechaInicio.slice(0, 10)) body.fecha_inicio = editForm.fecha_inicio
       if (editForm.fecha_cierre_estimada !== fechaCierre.slice(0, 10)) body.fecha_cierre_estimada = editForm.fecha_cierre_estimada
@@ -418,8 +344,9 @@ export default function ProyectoView({
         })
         if (!res.ok) { setError('Error al guardar cambios'); return }
       }
-      if (editForm.nombre) setNombre(editForm.nombre)
-      if (editForm.sector) setSector(editForm.sector)
+      if (editForm.nombre)  setNombre(editForm.nombre)
+      if (editForm.sector)  setSector(editForm.sector)
+      if (editForm.moneda)  setMoneda(editForm.moneda)
       setMonto(nuevoMonto)
       setFechaInicio(editForm.fecha_inicio)
       setFechaCierre(editForm.fecha_cierre_estimada)
@@ -542,6 +469,7 @@ export default function ProyectoView({
                 />
               ) : (
                 <MontoInline
+                  moneda={moneda}
                   value={montoEjecucion}
                   onChange={setMontoEjecucion}
                   onConfirm={() => {
@@ -635,12 +563,22 @@ export default function ProyectoView({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e' }}>Datos del proyecto</span>
               {!isEditing ? (
-                <button
-                  onClick={() => { setIsEditing(true); setEditForm({ nombre, sector, monto_contrato: monto > 0 ? String(monto) : '', fecha_inicio: fechaInicio.slice(0, 10), fecha_cierre_estimada: fechaCierre.slice(0, 10) }) }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
-                >
-                  <IconPencil size={13} /> Editar
-                </button>
+                editarProyectos && (
+                  <button
+                    onClick={() => {
+                      setIsEditing(true)
+                      setEditForm({
+                        nombre, sector, moneda,
+                        monto_contrato: monto > 0 ? String(monto) : '',
+                        fecha_inicio: fechaInicio.slice(0, 10),
+                        fecha_cierre_estimada: fechaCierre.slice(0, 10),
+                      })
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <IconPencil size={13} /> Editar
+                  </button>
+                )
               ) : (
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
@@ -681,13 +619,44 @@ export default function ProyectoView({
                 }
               </div>
 
-              <div>
-                <span style={fieldLabel}>Monto estimado</span>
-                {isEditing
-                  ? <input type="number" min="0" step="0.01" value={editForm.monto_contrato} onChange={(e) => setEditForm((p) => ({ ...p, monto_contrato: e.target.value }))} placeholder="Se definirá al adjudicar" style={inputStyle} />
-                  : <span style={{ fontSize: 13, color: monto > 0 ? '#1a1d1e' : '#9ca3af' }}>{formatMonto(monto)}</span>
-                }
-              </div>
+              {verMontos && (
+                <div>
+                  <span style={fieldLabel}>Monto del contrato</span>
+                  {isEditing ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {/* Selector moneda */}
+                      <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '0.5px solid #e8eaed', flexShrink: 0 }}>
+                        {(['PEN', 'USD'] as const).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setEditForm((p) => ({ ...p, moneda: m }))}
+                            style={{
+                              fontSize: 11, fontWeight: 600, padding: '6px 10px',
+                              border: 'none', cursor: 'pointer',
+                              backgroundColor: editForm.moneda === m ? '#004aad' : '#ffffff',
+                              color: editForm.moneda === m ? '#ffffff' : '#6b7280',
+                            }}
+                          >
+                            {m === 'PEN' ? 'S/' : 'US$'}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={editForm.monto_contrato}
+                        onChange={(e) => setEditForm((p) => ({ ...p, monto_contrato: e.target.value }))}
+                        placeholder="Por definir"
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 13, color: monto > 0 ? '#1a1d1e' : '#9ca3af' }}>
+                      {formatMonto(monto, moneda)}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
@@ -708,47 +677,22 @@ export default function ProyectoView({
 
               <div>
                 <span style={fieldLabel}>Avance general</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                  <input
-                    type="range"
-                    min={0} max={100} step={1}
-                    value={avanceDraft}
-                    onChange={(e) => { setAvanceDraft(Number(e.target.value)); setAvanceSaved(false) }}
-                    style={{ flex: 1, accentColor: '#004aad', cursor: 'pointer' }}
-                  />
-                  <input
-                    type="number"
-                    min={0} max={100} step={1}
-                    value={avanceDraft}
-                    onChange={(e) => { setAvanceDraft(Math.min(100, Math.max(0, Number(e.target.value)))); setAvanceSaved(false) }}
-                    style={{ ...inputStyle, width: 62, textAlign: 'center', padding: '4px 6px' }}
-                  />
-                  <span style={{ fontSize: 13, color: '#6b7280' }}>%</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                  <div style={{ flex: 1, height: 4, backgroundColor: '#e8eaed', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${avanceDraft}%`, backgroundColor: '#004aad', borderRadius: 2, transition: 'width 0.1s' }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                  <button
-                    onClick={handleSaveAvance}
-                    disabled={savingAvance || avanceDraft === avance}
-                    style={{
-                      fontSize: 12, fontWeight: 500,
-                      color: '#ffffff', backgroundColor: avanceDraft === avance ? '#b0b7c3' : '#004aad',
-                      border: 'none', borderRadius: 6,
-                      padding: '5px 14px', cursor: (savingAvance || avanceDraft === avance) ? 'default' : 'pointer',
-                      transition: 'background-color 0.15s',
-                    }}
-                  >
-                    {savingAvance ? 'Guardando...' : 'Guardar avance'}
-                  </button>
-                  {avanceSaved && (
-                    <span style={{ fontSize: 12, color: '#3b6d11', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <IconCheck size={13} /> Guardado
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div style={{ flex: 1, height: 6, backgroundColor: '#e8eaed', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${avance}%`,
+                        backgroundColor: avance === 100 ? '#3b6d11' : '#004aad',
+                        borderRadius: 3,
+                        transition: 'width 0.3s',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: avance === 100 ? '#3b6d11' : '#1a1d1e', minWidth: 36, textAlign: 'right' }}>
+                      {avance}%
                     </span>
-                  )}
+                  </div>
+                  <span style={{ fontSize: 11, color: '#b0b7c3' }}>Calculado automáticamente desde tareas completadas</span>
                 </div>
               </div>
 
@@ -802,176 +746,7 @@ export default function ProyectoView({
 
       {/* ── Tab: Documentos ── */}
       {activeTab === 'documentos' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <div style={{ display: 'flex', borderBottom: '1px solid #e8eaed' }}>
-              {(['cliente', 'interno'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setDocSubTab(t)}
-                  style={{
-                    padding: '7px 16px', fontSize: 13, fontWeight: 500,
-                    color: docSubTab === t ? '#004aad' : '#9ca3af',
-                    background: 'none', border: 'none',
-                    borderBottom: docSubTab === t ? '2px solid #004aad' : '2px solid transparent',
-                    cursor: 'pointer', marginBottom: -1,
-                  }}
-                >
-                  {t === 'cliente' ? `Del cliente (${docsCliente.length})` : `Nuestros (${docsInternos.length})`}
-                </button>
-              ))}
-            </div>
-            <Link
-              href={`/dashboard/proyectos/${proyecto.id}/documentos/nuevo?from=${esPipelineFase ? 'pipeline' : 'proyectos'}`}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: 12, fontWeight: 500, color: '#004aad',
-                padding: '6px 14px', borderRadius: 7,
-                border: '0.5px solid #004aad', textDecoration: 'none',
-              }}
-            >
-              Subir documento
-            </Link>
-          </div>
-
-          {docsActivos.length === 0 ? (
-            <div style={{ backgroundColor: '#ffffff', border: '1px dashed #e8eaed', borderRadius: 10, padding: 48, textAlign: 'center' }}>
-              <IconFileText size={28} style={{ color: '#d1d5db', margin: '0 auto 10px', display: 'block' }} />
-              <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>Sin documentos en esta categoría.</p>
-            </div>
-          ) : (
-            <div style={{ backgroundColor: '#ffffff', border: '0.5px solid #e8eaed', borderRadius: 10, overflow: 'hidden' }}>
-              {docsActivos.map((doc, i) => {
-                const estadoStyle = ESTADO_STYLES[doc.estado] ?? { backgroundColor: '#f4f6f8', color: '#6b7280' }
-                const isSaving     = savingDocId === doc.id
-                const isChanging   = changingDocId === doc.id
-                const isDeleting   = deletingDocId === doc.id
-                const confirmDelete = confirmDeleteDocId === doc.id
-                const estadosValidos = doc.es_interno
-                  ? ['borrador', 'enviado_cliente', 'con_observaciones', 'aprobado']
-                  : ['pendiente_revision', 'revisado']
-                const estadoLabels: Record<string, string> = {
-                  borrador: 'Borrador',
-                  enviado_cliente: 'Enviado al cliente',
-                  con_observaciones: 'Con observaciones',
-                  aprobado: 'Aprobado',
-                  pendiente_revision: 'Pendiente revisión',
-                  revisado: 'Revisado',
-                }
-
-                return (
-                  <div
-                    key={doc.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 16px',
-                      borderBottom: i < docsActivos.length - 1 ? '0.5px solid #e8eaed' : 'none',
-                      opacity: isSaving || isDeleting ? 0.6 : 1,
-                      transition: 'opacity 0.15s',
-                    }}
-                  >
-                    <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#f4f6f8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <IconFileText size={16} style={{ color: '#9ca3af' }} />
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#1a1d1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {doc.nombre}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                        {doc.tipo} · v{doc.version} · {formatDate(doc.fecha_subida)} · {doc.subido.nombre}
-                      </div>
-                    </div>
-
-                    {/* Badge de fase */}
-                    {doc.fase_subida && (() => {
-                      const fc = FASE_COLORS[doc.fase_subida] ?? { bg: '#f4f6f8', color: '#6b7280' }
-                      return (
-                        <span style={{
-                          fontSize: 10, fontWeight: 500,
-                          padding: '2px 7px', borderRadius: 999,
-                          backgroundColor: fc.bg, color: fc.color,
-                          flexShrink: 0, whiteSpace: 'nowrap',
-                        }}>
-                          {FASE_LABELS[doc.fase_subida] ?? doc.fase_subida}
-                        </span>
-                      )
-                    })()}
-
-                    {/* Estado: badge clickeable o select inline */}
-                    {isChanging ? (
-                      <select
-                        autoFocus
-                        defaultValue={doc.estado}
-                        onChange={(e) => handleEstadoChange(doc.id, e.target.value)}
-                        style={{
-                          fontSize: 11, fontWeight: 500,
-                          padding: '2px 6px', borderRadius: 999,
-                          border: `1.5px solid ${estadoStyle.color}`,
-                          backgroundColor: estadoStyle.backgroundColor,
-                          color: estadoStyle.color,
-                          cursor: 'pointer', outline: 'none',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {estadosValidos.map((e) => (
-                          <option key={e} value={e}>{estadoLabels[e] ?? e}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <button
-                        onClick={() => !isSaving && setChangingDocId(doc.id)}
-                        title="Clic para cambiar estado"
-                        style={{
-                          fontSize: 11, fontWeight: 500,
-                          padding: '2px 8px', borderRadius: 999,
-                          border: 'none', flexShrink: 0,
-                          cursor: isSaving ? 'wait' : 'pointer',
-                          ...estadoStyle,
-                        }}
-                      >
-                        {isSaving ? '...' : (estadoLabels[doc.estado] ?? doc.estado.replace(/_/g, ' '))}
-                      </button>
-                    )}
-
-                    <a
-                      href={doc.url} target="_blank" rel="noopener noreferrer" title="Descargar"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '0.5px solid #e8eaed', color: '#6b7280', flexShrink: 0, textDecoration: 'none' }}
-                    >
-                      <IconDownload size={14} />
-                    </a>
-
-                    {/* Eliminar */}
-                    {confirmDelete ? (
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                        <button
-                          onClick={() => handleDeleteDoc(doc.id)}
-                          style={{ fontSize: 11, padding: '3px 8px', backgroundColor: '#a32d2d', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer' }}
-                        >
-                          Eliminar
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteDocId(null)}
-                          style={{ fontSize: 11, padding: '3px 8px', color: '#6b7280', border: '0.5px solid #e8eaed', borderRadius: 5, background: 'none', cursor: 'pointer' }}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => !isDeleting && setConfirmDeleteDocId(doc.id)}
-                        title="Eliminar documento"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '0.5px solid #e8eaed', color: '#9ca3af', background: 'none', cursor: isDeleting ? 'wait' : 'pointer', flexShrink: 0 }}
-                      >
-                        {isDeleting ? '...' : <IconTrash size={13} />}
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <TabDocumentos proyectoId={proyecto.id} />
       )}
 
       {/* ── Tab: Actividad ── */}
@@ -1055,17 +830,33 @@ export default function ProyectoView({
         <TabTareas proyectoId={proyecto.id} usuarios={usuarios} />
       )}
 
-      {/* ── Tab: Campo ── */}
-      {activeTab === 'campo' && (
-        <TabCampo proyectoId={proyecto.id} />
+      {/* ── Tab: Ingeniería ── */}
+      {activeTab === 'ingenieria' && (
+        <TabIngenieria
+          proyectoId={proyecto.id}
+          proyectoCodigo={proyecto.codigo}
+          proyectoNombre={nombre}
+        />
       )}
 
-      {/* ── Tab: Valorizaciones ── */}
+      {/* ── Tab: Ejecución ── */}
+      {activeTab === 'ejecucion' && (
+        <TabEjecucion proyectoId={proyecto.id} />
+      )}
+
+      {/* ── Tab: Generador ── */}
+      {activeTab === 'generador' && (
+        <TabGenerador
+          proyectoId={proyecto.id}
+          proyectoNombre={nombre}
+          clienteNombre={proyecto.cliente.razon_social}
+        />
+      )}
+
+      {/* Valorizaciones y Facturación: código preservado, tabs ocultos */}
       {activeTab === 'valorizaciones' && (
         <TabValorizaciones proyectoId={proyecto.id} valorizaciones={[]} />
       )}
-
-      {/* ── Tab: Facturacion ── */}
       {activeTab === 'facturacion' && (
         <TabFacturacion proyectoId={proyecto.id} valorizaciones={valorizacionesIniciales} />
       )}
@@ -1073,13 +864,9 @@ export default function ProyectoView({
   )
 }
 
-// ─── Mini components (pure, no hooks) ────────────────────────────────────────
+// ─── Mini components ──────────────────────────────────────────────────────────
 
-function BackBtn({
-  onClick, disabled, label,
-}: {
-  onClick: () => void; disabled: boolean; label: string
-}) {
+function BackBtn({ onClick, disabled, label }: { onClick: () => void; disabled: boolean; label: string }) {
   return (
     <button
       onClick={onClick}
@@ -1089,8 +876,7 @@ function BackBtn({
         background: 'none', border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
-        padding: '6px 4px',
-        alignSelf: 'center',
+        padding: '6px 4px', alignSelf: 'center',
       }}
     >
       {label}
@@ -1098,9 +884,7 @@ function BackBtn({
   )
 }
 
-function ActionBtn({
-  onClick, disabled, bg, color, icon, label,
-}: {
+function ActionBtn({ onClick, disabled, bg, color, icon, label }: {
   onClick: () => void; disabled: boolean
   bg: string; color: string
   icon: React.ReactNode; label: string
@@ -1125,9 +909,7 @@ function ActionBtn({
   )
 }
 
-function MotivoInline({
-  bg, color, placeholder, value, onChange, onConfirm, onCancel, disabled,
-}: {
+function MotivoInline({ bg, color, placeholder, value, onChange, onConfirm, onCancel, disabled }: {
   bg: string; color: string; placeholder: string
   value: string; onChange: (v: string) => void
   onConfirm: () => void; onCancel: () => void
@@ -1153,13 +935,13 @@ function MotivoInline({
   )
 }
 
-function MontoInline({
-  value, onChange, onConfirm, onCancel, disabled,
-}: {
+function MontoInline({ moneda, value, onChange, onConfirm, onCancel, disabled }: {
+  moneda: string
   value: string; onChange: (v: string) => void
   onConfirm: () => void; onCancel: () => void
   disabled: boolean
 }) {
+  const simbolo = moneda === 'USD' ? 'US$' : 'S/'
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 10px', backgroundColor: '#e8f0fd', borderRadius: 6 }}>
       <input
@@ -1167,7 +949,7 @@ function MontoInline({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && !disabled && onConfirm()}
-        placeholder="Monto del contrato (S/)"
+        placeholder={`Monto del contrato (${simbolo})`}
         style={{ fontSize: 12, padding: '4px 8px', border: '0.5px solid #004aad44', borderRadius: 5, outline: 'none', width: 220, color: '#1a1d1e' }}
       />
       <button onClick={onConfirm} disabled={disabled} style={{ fontSize: 12, padding: '5px 10px', backgroundColor: '#004aad', color: '#fff', border: 'none', borderRadius: 5, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}>

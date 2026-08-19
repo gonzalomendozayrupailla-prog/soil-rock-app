@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { verifyToken } from '@/app/lib/session'
-import bcrypt from 'bcryptjs'
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,14 +32,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    if (!body.nombre || !body.correo || !body.password || !body.rol) {
+    if (!body.nombre || !body.correo || !body.rol) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
     const existe = await prisma.usuario.findUnique({ where: { correo: body.correo } })
     if (existe) return NextResponse.json({ error: 'El correo ya esta en uso' }, { status: 409 })
-
-    const password_hash = await bcrypt.hash(body.password, 12)
 
     const permisos = body.permisos ?? {
       ver_proyectos: true,
@@ -49,19 +46,15 @@ export async function POST(req: NextRequest) {
       subir_documentos: false,
       ver_reportes_campo: true,
       editar_reportes_campo: false,
-      ver_valorizaciones: true,
-      editar_valorizaciones: false,
-      ver_facturas: false,
-      ver_garantias: false,
       ver_dashboard: true,
       ver_montos: false,
+      ver_comercial: true,
     }
 
     const usuario = await prisma.usuario.create({
       data: {
         nombre: body.nombre,
         correo: body.correo,
-        password_hash,
         rol: body.rol,
         permisos,
       },

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
+import { requireAuth } from '@/app/lib/auth'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error } = await requireAuth(req)
+  if (error) return error
+
   const { id } = await params
 
   const cliente = await prisma.cliente.findUnique({
@@ -26,6 +30,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error } = await requireAuth(req)
+    if (error) return error
+
     const { id } = await params
     const body = await req.json()
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { verifyToken } from '@/app/lib/session'
-import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { requirePermiso } from '@/app/lib/auth'
 
 const ESTADOS_VALIDOS = [
   'borrador', 'enviado_cliente', 'con_observaciones',
@@ -20,8 +20,11 @@ export async function POST(
     const session = await verifyToken(token)
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    const permError = requirePermiso(session, 'subir_documentos')
+    if (permError) return permError
+
     const { id: proyecto_id } = await params
-    const { path, nombre, tipo, version, es_interno, estado } = await req.json()
+    const { path, nombre, tipo, version, es_interno, estado, carpeta_id } = await req.json()
 
     if (!path || !nombre || !tipo || !version) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
@@ -30,8 +33,6 @@ export async function POST(
     const proyecto = await prisma.proyecto.findUnique({ where: { id: proyecto_id } })
     if (!proyecto) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
 
-    const { data: urlData } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path)
-
     const esInterno = !!es_interno
     const estadoDefault = esInterno ? 'borrador' : 'pendiente_revision'
     const estadoFinal: EstadoDoc = ESTADOS_VALIDOS.includes(estado) ? estado : estadoDefault
@@ -39,12 +40,13 @@ export async function POST(
     const documento = await prisma.documento.create({
       data: {
         proyecto_id,
+        carpeta_id: carpeta_id ?? null,
         nombre,
         tipo,
         version,
         es_interno: esInterno,
         estado: estadoFinal,
-        url: urlData.publicUrl,
+        url: path,
         subido_por: session.id,
         fase_subida: proyecto.fase,
       },

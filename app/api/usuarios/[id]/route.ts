@@ -34,3 +34,29 @@ export async function PATCH(
     return NextResponse.json({ error: 'Error' }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const token = req.cookies.get('token')?.value
+    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const session = await verifyToken(token)
+    if (!session || session.rol !== 'gerente') {
+      return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    }
+
+    const { id } = await params
+
+    if (id === session.id) {
+      return NextResponse.json({ error: 'No puedes eliminarte a ti mismo' }, { status: 400 })
+    }
+
+    await prisma.usuario.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[DELETE /api/usuarios/[id]]', err)
+    return NextResponse.json({ error: 'Error al eliminar usuario' }, { status: 500 })
+  }
+}

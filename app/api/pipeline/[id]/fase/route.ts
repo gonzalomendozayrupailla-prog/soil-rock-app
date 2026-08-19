@@ -34,7 +34,8 @@ export async function PATCH(
       data: updateData,
     })
 
-    return NextResponse.json(proyecto)
+    const verMontos = session.permisos['ver_montos'] !== false
+    return NextResponse.json(verMontos ? proyecto : { ...proyecto, monto_contrato: null })
   } catch (err) {
     console.error('[PATCH /api/pipeline/[id]/fase]', err)
     return NextResponse.json({ error: 'Error al actualizar fase' }, { status: 500 })

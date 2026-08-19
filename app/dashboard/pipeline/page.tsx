@@ -35,6 +35,7 @@ export default async function PipelinePage() {
     fase: p.fase,
     sector: p.sector,
     monto_contrato: Number(p.monto_contrato),
+    moneda: p.moneda,
     created_at: p.created_at.toISOString(),
     cliente: p.cliente,
   }))
@@ -51,6 +52,7 @@ export default async function PipelinePage() {
         nombre: p.nombre,
         sector: p.sector,
         monto_contrato: Number(p.monto_contrato),
+        moneda: p.moneda,
         created_at: p.created_at.toISOString(),
         cliente: p.cliente,
         motivo_perdida: notaMotivo

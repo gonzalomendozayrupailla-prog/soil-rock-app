@@ -9,12 +9,12 @@ export default async function DashboardLayout({
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get('token')?.value
-  let user = null
+  let user: { nombre: string; rol: string; permisos: Record<string, boolean> } | null = null
 
   if (token) {
     const session = await verifyToken(token)
     if (session) {
-      user = { nombre: session.nombre, rol: session.rol }
+      user = { nombre: session.nombre, rol: session.rol, permisos: session.permisos ?? {} }
     }
   }
 
