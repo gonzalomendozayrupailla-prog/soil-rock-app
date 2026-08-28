@@ -5,17 +5,11 @@ const globalForSupabase = globalThis as unknown as {
 }
 
 function createSupabaseAdmin() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!url || !key) {
-    throw new Error(
-      '[supabase] Faltan variables de entorno: ' +
-        (!url ? 'SUPABASE_URL ' : '') +
-        (!key ? 'SUPABASE_SERVICE_ROLE_KEY' : '')
-    )
-  }
-
+  // Durante el build de Next.js las env vars no están disponibles.
+  // Usamos placeholder para que el módulo pueda importarse sin error;
+  // en runtime Vercel inyecta las variables reales.
+  const url = process.env.SUPABASE_URL ?? 'https://placeholder.supabase.co'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'placeholder'
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
