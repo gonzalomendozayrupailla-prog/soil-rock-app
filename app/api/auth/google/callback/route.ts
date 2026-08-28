@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
     })
 
     if (!tokenRes.ok) {
+      const body = await tokenRes.text()
+      console.error('[Google OAuth] token_exchange failed', tokenRes.status, body)
       return NextResponse.redirect(new URL('/login?error=token_exchange', req.nextUrl))
     }
 
@@ -61,6 +63,8 @@ export async function GET(req: NextRequest) {
     })
 
     if (!userInfoRes.ok) {
+      const body = await userInfoRes.text()
+      console.error('[Google OAuth] userinfo failed', userInfoRes.status, body)
       return NextResponse.redirect(new URL('/login?error=userinfo', req.nextUrl))
     }
 
@@ -72,6 +76,7 @@ export async function GET(req: NextRequest) {
     })
 
     if (!usuario || !usuario.activo) {
+      console.error('[Google OAuth] no_access — email:', googleUser.email, 'usuario:', usuario)
       return NextResponse.redirect(new URL('/login?error=no_access', req.nextUrl))
     }
 
