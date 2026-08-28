@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
 import { requireAuth } from '@/app/lib/auth'
 
 export async function DELETE(
@@ -22,7 +22,7 @@ export async function DELETE(
     const marker = `/storage/v1/object/public/${BUCKET}/`
     const storagePath = documento.url.split(marker)[1]
     if (storagePath) {
-      await supabaseAdmin.storage.from(BUCKET).remove([storagePath])
+      await getSupabaseAdmin().storage.from(BUCKET).remove([storagePath])
     }
 
     await prisma.documento.delete({ where: { id } })

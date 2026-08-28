@@ -1,33 +1,41 @@
 import { createClient } from '@supabase/supabase-js'
 
-const globalForSupabase = globalThis as unknown as {
-  supabaseAdmin: ReturnType<typeof createClient>
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalForSupabase = globalThis as unknown as { supabaseAdmin: any }
 
-function createSupabaseAdmin() {
-  // Durante el build de Next.js las env vars no están disponibles.
-  // Usamos placeholder para que el módulo pueda importarse sin error;
-  // en runtime Vercel inyecta las variables reales.
-  const url = process.env.SUPABASE_URL ?? 'https://placeholder.supabase.co'
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'placeholder'
-  return createClient(url, key, { auth: { persistSession: false } })
-}
+// No se crea ningún cliente al importar el módulo.
+// Solo se instancia cuando se llama getSupabaseAdmin() en runtime.
+export function getSupabaseAdmin() {
+  if (globalForSupabase.supabaseAdmin) return globalForSupabase.supabaseAdmin
 
-export const supabaseAdmin =
-  globalForSupabase.supabaseAdmin ?? createSupabaseAdmin()
+  const url = process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForSupabase.supabaseAdmin = supabaseAdmin
+  if (!url || !key) {
+    throw new Error(
+      '[supabase] Faltan variables de entorno: ' +
+        (!url ? 'SUPABASE_URL ' : '') +
+        (!key ? 'SUPABASE_SERVICE_ROLE_KEY' : '')
+    )
+  }
+
+  const client = createClient(url, key, { auth: { persistSession: false } })
+  if (process.env.NODE_ENV !== 'production') {
+    globalForSupabase.supabaseAdmin = client
+  }
+  return client
 }
 
 export const BUCKET = 'documentos'
 
 export async function ensureBucket() {
-  const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
+  const admin = getSupabaseAdmin()
+  const { data: buckets, error: listError } = await admin.storage.listBuckets()
   if (listError) throw listError
-  const exists = buckets?.some((b) => b.name === BUCKET)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exists = buckets?.some((b: any) => b.name === BUCKET)
   if (!exists) {
-    const { error: createError } = await supabaseAdmin.storage.createBucket(BUCKET, { public: false })
+    const { error: createError } = await admin.storage.createBucket(BUCKET, { public: false })
     if (createError) throw createError
   }
 }

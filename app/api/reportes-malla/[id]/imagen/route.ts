@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { requireAuth } from '@/app/lib/auth'
-import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
 
 export async function GET(
   req: NextRequest,
@@ -30,7 +30,7 @@ export async function GET(
 
   if (!path) return NextResponse.json({ error: 'Sin imagen' }, { status: 404 })
 
-  const { data, error: signError } = await supabaseAdmin.storage
+  const { data, error: signError } = await getSupabaseAdmin().storage
     .from(BUCKET)
     .createSignedUrl(path, 300)
 

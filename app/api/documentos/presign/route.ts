@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/app/lib/session'
-import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
 import { isAllowedExtension } from '@/app/lib/auth'
 
 export async function POST(req: NextRequest) {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       .slice(0, 80)
     const path = `${proyectoId}/${Date.now()}-${safeName}.${ext}`
 
-    const { data, error } = await supabaseAdmin.storage
+    const { data, error } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .createSignedUploadUrl(path)
 

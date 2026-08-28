@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 import { verifyToken } from '@/app/lib/session'
-import { supabaseAdmin, BUCKET } from '@/app/lib/supabase'
+import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
 import { requireAuth, isAllowedExtension } from '@/app/lib/auth'
 
 export async function GET(
@@ -75,7 +75,7 @@ export async function POST(
 
     // Subir a Supabase Storage
     const buffer = await archivo.arrayBuffer()
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .upload(storagePath, buffer, {
         contentType: archivo.type,
