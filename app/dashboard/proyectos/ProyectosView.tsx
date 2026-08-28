@@ -56,6 +56,8 @@ export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) 
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabKey>('todos')
   const [search, setSearch] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
 
   // Counts per tab (ignoring search, so always visible)
   const counts = Object.fromEntries(
@@ -65,6 +67,8 @@ export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) 
   const filtered = proyectos.filter((p) => {
     const tab = TABS_DEF.find((t) => t.key === activeTab)!
     if (!(tab.fases as readonly string[]).includes(p.fase)) return false
+    if (fechaDesde && p.fecha_inicio.slice(0, 10) < fechaDesde) return false
+    if (fechaHasta && p.fecha_inicio.slice(0, 10) > fechaHasta) return false
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -126,6 +130,42 @@ export default function ProyectosView({ proyectos }: { proyectos: Proyecto[] }) 
           >
             <IconFolderPlus size={15} />
           </Link>
+        </div>
+
+        {/* Date filters */}
+        <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>Desde</span>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            style={{
+              flex: 1, padding: '5px 8px', fontSize: 12,
+              border: '0.5px solid #e8eaed', borderRadius: 6,
+              outline: 'none', color: fechaDesde ? '#1a1d1e' : '#9ca3af',
+              backgroundColor: '#f4f6f8', boxSizing: 'border-box',
+            }}
+          />
+          <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>Hasta</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            style={{
+              flex: 1, padding: '5px 8px', fontSize: 12,
+              border: '0.5px solid #e8eaed', borderRadius: 6,
+              outline: 'none', color: fechaHasta ? '#1a1d1e' : '#9ca3af',
+              backgroundColor: '#f4f6f8', boxSizing: 'border-box',
+            }}
+          />
+          {(fechaDesde || fechaHasta) && (
+            <button
+              onClick={() => { setFechaDesde(''); setFechaHasta('') }}
+              style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+            >
+              Limpiar
+            </button>
+          )}
         </div>
 
         {/* Filter Tabs */}

@@ -8,33 +8,45 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface InyeccionFila {
+interface AnclajeRow {
   id: string
   codigo: string
-  consumo_boca: string
-  total: string
-  estado: string
+  hora_inicio: string
+  hora_final: string
+  delta_tiempo: string
+  l_bulbo: string
+  l_libre: string
+  l_mecha: string
+  l_total: string
+  n_barras: string
+  angulo_vertical: string
+  angulo_horiz: string
+  reubico: string
+  dx: string
+  dy: string
 }
 
-interface InyeccionFormState {
+interface AnclajeFormState {
   codigo: string
   version: string
   fecha: string
   ubicacion: string
   metodologia: string
-  fluido: string
-  cemento: string
-  aditivo: string
+  sistema: string
+  martillo_dth: string
+  diametro_casing: string
   descripcion_suelo: string
   observaciones: string
-  central_inyeccion: string
+  anclajes_perforados: string
+  anclajes_acumulados: string
+  perforadora_hidraulica: string
+  compresora_aire: string
   supervisor: string
   oper_perforista: string
-  oper_inyeccion: string
-  anclajes_inyectados: string
-  anclajes_acumulados: string
-  supervisor_sr: string
-  supervisor_cliente_nombre: string
+  oper_compresorista: string
+  supervisor_obra: string
+  ingeniero_civil: string
+  col_variante: 'barras' | 'cables'
 }
 
 interface ReporteResumen {
@@ -49,10 +61,13 @@ interface ReporteResumen {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function newInyeccionRow(): InyeccionFila {
+function newAnclajeRow(): AnclajeRow {
   return {
     id: typeof crypto !== 'undefined' ? crypto.randomUUID() : String(Date.now()),
-    codigo: '', consumo_boca: '', total: '', estado: '',
+    codigo: '', hora_inicio: '', hora_final: '', delta_tiempo: '',
+    l_bulbo: '', l_libre: '', l_mecha: '', l_total: '',
+    n_barras: '', angulo_vertical: '', angulo_horiz: '',
+    reubico: '', dx: '', dy: '',
   }
 }
 
@@ -62,15 +77,25 @@ function formatFechaPDF(isoDate: string): string {
   return `${d}-${m}-${y}`
 }
 
-const defaultForm: InyeccionFormState = {
+function decimalToHHMM(v: string | number): string {
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  if (isNaN(n) || v === '') return '—'
+  const totalMin = Math.round(n * 24 * 60)
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+const defaultForm: AnclajeFormState = {
   codigo: '', version: '', fecha: '',
   ubicacion: '', metodologia: '',
-  fluido: '', cemento: '', aditivo: '',
+  sistema: '', martillo_dth: '', diametro_casing: '',
   descripcion_suelo: '', observaciones: '',
-  central_inyeccion: '', supervisor: '',
-  oper_perforista: '', oper_inyeccion: '',
-  anclajes_inyectados: '0', anclajes_acumulados: '0',
-  supervisor_sr: '', supervisor_cliente_nombre: '',
+  anclajes_perforados: '0', anclajes_acumulados: '0',
+  perforadora_hidraulica: '', compresora_aire: '',
+  supervisor: '', oper_perforista: '', oper_compresorista: '',
+  supervisor_obra: '', ingeniero_civil: '',
+  col_variante: 'barras',
 }
 
 async function getBase64(file: File): Promise<string> {
@@ -100,24 +125,22 @@ async function getImageDimensions(src: string): Promise<{ w: number; h: number }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TabGenerador({
+export default function TabGeneradorAnclaje({
   proyectoId,
   proyectoNombre,
   clienteNombre,
-  proyectoUbicacion = '',
 }: {
   proyectoId: string
   proyectoNombre: string
   clienteNombre: string
-  proyectoUbicacion?: string
 }) {
   const [view, setView] = useState<'list' | 'form'>('list')
   const [reportes, setReportes] = useState<ReporteResumen[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const [form, setForm] = useState<InyeccionFormState>(defaultForm)
-  const [filas, setFilas] = useState<InyeccionFila[]>([newInyeccionRow()])
+  const [form, setForm] = useState<AnclajeFormState>(defaultForm)
+  const [filas, setFilas] = useState<AnclajeRow[]>([newAnclajeRow()])
 
   const [logoSrFile, setLogoSrFile] = useState<File | null>(null)
   const [logoSrPreview, setLogoSrPreview] = useState<string | null>(null)
@@ -144,7 +167,7 @@ export default function TabGenerador({
   async function loadList() {
     setLoadingList(true)
     try {
-      const res = await fetch(`/api/proyectos/${proyectoId}/reportes-inyeccion`)
+      const res = await fetch(`/api/proyectos/${proyectoId}/reportes-anclaje`)
       if (res.ok) setReportes(await res.json())
     } finally {
       setLoadingList(false)
@@ -153,8 +176,8 @@ export default function TabGenerador({
 
   function openNew() {
     setEditingId(null)
-    setForm({ ...defaultForm, fecha: new Date().toISOString().slice(0, 10), ubicacion: proyectoUbicacion })
-    setFilas([newInyeccionRow()])
+    setForm({ ...defaultForm, fecha: new Date().toISOString().slice(0, 10) })
+    setFilas([newAnclajeRow()])
     setLogoSrFile(null); setLogoSrPreview(null); setLogoSrPath(null)
     setLogoClienteFile(null); setLogoClientePreview(null); setLogoClientePath(null)
     setEsquemaFile(null); setEsquemaPreview(null); setEsquemaPath(null)
@@ -164,32 +187,34 @@ export default function TabGenerador({
 
   async function openEdit(id: string) {
     try {
-      const res = await fetch(`/api/reportes-inyeccion/${id}`)
+      const res = await fetch(`/api/reportes-anclaje/${id}`)
       if (!res.ok) { setError('Error al cargar reporte'); return }
       const d = await res.json()
       setEditingId(id)
       setForm({
-        codigo: d.codigo,
-        version: d.version,
-        fecha: d.fecha.slice(0, 10),
-        ubicacion: d.ubicacion ?? '',
-        metodologia: d.metodologia ?? '',
-        fluido: d.fluido ?? '',
-        cemento: d.cemento ?? '',
-        aditivo: d.aditivo ?? '',
-        descripcion_suelo: d.descripcion_suelo ?? '',
-        observaciones: d.observaciones ?? '',
-        central_inyeccion: d.central_inyeccion ?? '',
-        supervisor: d.supervisor ?? '',
-        oper_perforista: d.oper_perforista ?? '',
-        oper_inyeccion: d.oper_inyeccion ?? '',
-        anclajes_inyectados: String(d.anclajes_inyectados ?? 0),
+        codigo:              d.codigo,
+        version:             d.version,
+        fecha:               d.fecha.slice(0, 10),
+        ubicacion:           d.ubicacion ?? '',
+        metodologia:         d.metodologia ?? '',
+        sistema:             d.sistema ?? '',
+        martillo_dth:        d.martillo_dth ?? '',
+        diametro_casing:     d.diametro_casing ?? '',
+        descripcion_suelo:   d.descripcion_suelo ?? '',
+        observaciones:       d.observaciones ?? '',
+        anclajes_perforados: String(d.anclajes_perforados ?? 0),
         anclajes_acumulados: String(d.anclajes_acumulados ?? 0),
-        supervisor_sr: d.supervisor_sr ?? '',
-        supervisor_cliente_nombre: d.supervisor_cliente ?? '',
+        perforadora_hidraulica: d.perforadora_hidraulica ?? '',
+        compresora_aire:     d.compresora_aire ?? '',
+        supervisor:          d.supervisor ?? '',
+        oper_perforista:     d.oper_perforista ?? '',
+        oper_compresorista:  d.oper_compresorista ?? '',
+        supervisor_obra:     d.supervisor_obra ?? '',
+        ingeniero_civil:     d.ingeniero_civil ?? '',
+        col_variante:        (d.oficial_1 === 'cables' ? 'cables' : 'barras'),
       })
       setFilas(
-        (d.anclajes as InyeccionFila[]).map(a => ({
+        (Array.isArray(d.anclajes) ? d.anclajes : []).map((a: AnclajeRow) => ({
           ...a,
           id: a.id || (typeof crypto !== 'undefined' ? crypto.randomUUID() : String(Date.now())),
         }))
@@ -238,17 +263,17 @@ export default function TabGenerador({
 
       const body = {
         ...form,
-        fecha: new Date(form.fecha).toISOString(),
-        anclajes_inyectados: parseInt(form.anclajes_inyectados) || 0,
+        fecha:               new Date(form.fecha).toISOString(),
+        anclajes_perforados: parseInt(form.anclajes_perforados) || 0,
         anclajes_acumulados: parseInt(form.anclajes_acumulados) || 0,
-        anclajes: filas,
-        logo_sr_path: srPath,
-        logo_cliente_path: clPath,
-        esquema_path: esqPath,
-        supervisor_cliente: form.supervisor_cliente_nombre,
+        anclajes:            filas,
+        oficial_1:           form.col_variante,
+        logo_sr_path:        srPath,
+        logo_cliente_path:   clPath,
+        esquema_path:        esqPath,
       }
 
-      const url    = editingId ? `/api/reportes-inyeccion/${editingId}` : `/api/proyectos/${proyectoId}/reportes-inyeccion`
+      const url    = editingId ? `/api/reportes-anclaje/${editingId}` : `/api/proyectos/${proyectoId}/reportes-anclaje`
       const method = editingId ? 'PATCH' : 'POST'
 
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -279,7 +304,7 @@ export default function TabGenerador({
     if (file) return getBase64(file)
     if (path && reporteId) {
       try {
-        const res = await fetch(`/api/reportes-inyeccion/${reporteId}/logo?tipo=${tipo}`)
+        const res = await fetch(`/api/reportes-anclaje/${reporteId}/logo?tipo=${tipo}`)
         if (!res.ok) return null
         const { url } = await res.json()
         const imgRes = await fetch(url)
@@ -318,23 +343,21 @@ export default function TabGenerador({
         fetchImageBase64(esquemaFile, esquemaPath, editingId, 'esquema'),
       ])
 
-      const COL_GAP = 4
-      const LCW = Math.round(CW * 0.60)
-      const RCW = CW - LCW - COL_GAP
-      const RX  = M + LCW + COL_GAP
+      const colMecha  = form.col_variante === 'cables' ? 'L.\nTensado'  : 'L.\nMecha'
+      const colBarras = form.col_variante === 'cables' ? 'N°\nCables'   : 'N°\nBarras'
 
       let currentY = M
 
-      // ── Header ──
-      const LOGO_W  = 34
-      const TITLE_W = LCW - LOGO_W * 2
-      const HDR_H   = 22
+      // ── Header ──────────────────────────────────────────────────────────────
+      const LOGO_W = 34
+      const TITLE_W = CW - LOGO_W * 2
+      const HDR_H = 22
 
       doc.setFillColor(...BLUE)
-      doc.rect(M, currentY, LCW, HDR_H, 'F')
+      doc.rect(M, currentY, CW, HDR_H, 'F')
       doc.setDrawColor(...BORDER)
       doc.setLineWidth(0.3)
-      doc.rect(M, currentY, LCW, HDR_H)
+      doc.rect(M, currentY, CW, HDR_H)
       doc.line(M + LOGO_W, currentY, M + LOGO_W, currentY + HDR_H)
       doc.line(M + LOGO_W + TITLE_W, currentY, M + LOGO_W + TITLE_W, currentY + HDR_H)
 
@@ -352,9 +375,9 @@ export default function TabGenerador({
       const tCX = M + LOGO_W + TITLE_W / 2
       const tW  = TITLE_W - 4
 
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...WHITE)
-      const titleLines = doc.splitTextToSize('REPORTE DE INYECCIÓN PARA ANCLAJES', tW)
-      const lineH = 4.5
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE)
+      const titleLines = doc.splitTextToSize('REPORTE DE PERFORACIÓN E INSTALACIÓN DE ANCLAJES TEMPORALES', tW)
+      const lineH = 4.2
       const titleBlockH = titleLines.length * lineH + 1 + 6 + 1 + 3.5
       const titleStartY = currentY + (HDR_H - titleBlockH) / 2 + lineH
       doc.text(titleLines, tCX, titleStartY, { align: 'center' })
@@ -369,18 +392,18 @@ export default function TabGenerador({
 
       currentY += HDR_H + 2
 
-      // ── Datos generales ──
-      const half = LCW / 2
-      const LW  = 26, VW  = half - LW
-      const LW2 = 30, VW2 = half - LW2
+      // ── Datos Generales ──────────────────────────────────────────────────────
+      const half = CW / 2
+      const LW  = 30, VW  = half - LW
+      const LW2 = 36, VW2 = half - LW2
 
       autoTable(doc, {
         startY: currentY,
         body: [
-          ['Proyecto:',  proyectoNombre || '—', 'Metodología:', form.metodologia || '—'],
-          ['Ubicación:', form.ubicacion || '—',  'Fluido:',      form.fluido || '—'],
-          ['Cliente:',   clienteNombre || '—',   'Cemento:',     form.cemento || '—'],
-          ['Fecha:',     formatFechaPDF(form.fecha), 'Aditivo:', form.aditivo || '—'],
+          ['Proyecto:',              proyectoNombre || '—',      'Metodología:',         form.metodologia || '—'],
+          ['Ubicación:',             form.ubicacion || '—',       'Sistema:',             form.sistema || '—'],
+          ['Cliente:',               clienteNombre || '—',        'Martillo de fondo DTH:', form.martillo_dth || '—'],
+          ['Fecha:',                 formatFechaPDF(form.fecha),  'Diámetro de Casing:',  form.diametro_casing || '—'],
         ],
         styles: {
           fontSize: 7.5, cellPadding: { top: 1.8, bottom: 1.8, left: 2.5, right: 2 },
@@ -392,7 +415,7 @@ export default function TabGenerador({
           2: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: LW2 },
           3: { cellWidth: VW2 },
         },
-        margin: { left: M, right: W - M - LCW },
+        margin: { left: M, right: M },
         showHead: 'never',
         theme: 'grid',
       })
@@ -400,43 +423,96 @@ export default function TabGenerador({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       currentY = (doc as any).lastAutoTable.finalY + 3
 
-      // ── Tabla de anclajes (60% izquierda) — autoTable maneja sus propios saltos ──
-      const totalBls = filas.reduce((s, a) => s + (parseFloat(a.total) || 0), 0)
+      // ── Tabla de Anclajes (full width, paginación automática) ────────────────
+      // Anchos de columnas (suma = CW = 281):
+      // 26+21+21+18+18+17+24+18+26+22+24+16+15+15 = 281
+      const COL_W = {
+        codigo:    26,
+        h_ini:     21,
+        h_fin:     21,
+        dt:        18,
+        l_bulbo:   18,
+        l_libre:   17,
+        l_mecha:   24,
+        l_total:   18,
+        n_barras:  26,
+        ang_v:     22,
+        ang_h:     24,
+        reubico:   16,
+        dx:        15,
+        dy:        15,
+      }
 
       autoTable(doc, {
         startY: currentY,
         head: [[
-          { content: 'Código Anclaje',                                styles: { halign: 'center' } },
-          { content: 'Consumo de Cemento\npor Manguera en Boca (Bls)', styles: { halign: 'center' } },
-          { content: 'Total\n(Bls)',                                   styles: { halign: 'center' } },
-          { content: 'Estado',                                         styles: { halign: 'center' } },
+          { content: 'Código\nAnclaje',           styles: { halign: 'center' } },
+          { content: 'Hora\nInicio',               styles: { halign: 'center' } },
+          { content: 'Hora\nFinal',                styles: { halign: 'center' } },
+          { content: 'Dif.\nTiempo',                 styles: { halign: 'center' } },
+          { content: 'L.\nBulbo',                  styles: { halign: 'center' } },
+          { content: 'L.\nLibre',                  styles: { halign: 'center' } },
+          { content: colMecha,                      styles: { halign: 'center' } },
+          { content: 'L.\nTotal',                  styles: { halign: 'center' } },
+          { content: colBarras,                     styles: { halign: 'center' } },
+          { content: 'Ángulo\nVertical',            styles: { halign: 'center' } },
+          { content: 'Ángulo\nHoriz.',              styles: { halign: 'center' } },
+          { content: 'Reubicó',                     styles: { halign: 'center' } },
+          { content: 'D X',                         styles: { halign: 'center' } },
+          { content: 'D Y',                         styles: { halign: 'center' } },
         ]],
-        body: filas.map(a => [a.codigo || '', a.consumo_boca || '', a.total || '', a.estado || '']),
+        body: filas.map(r => [
+          r.codigo || '',
+          r.hora_inicio   ? decimalToHHMM(r.hora_inicio)   : '',
+          r.hora_final    ? decimalToHHMM(r.hora_final)    : '',
+          r.delta_tiempo  ? decimalToHHMM(r.delta_tiempo)  : '',
+          r.l_bulbo       || '',
+          r.l_libre       || '',
+          r.l_mecha       || '',
+          r.l_total       || '',
+          r.n_barras      || '',
+          r.angulo_vertical || '',
+          r.angulo_horiz  || '',
+          r.reubico       || '',
+          r.dx            || '',
+          r.dy            || '',
+        ]),
         headStyles: {
           fillColor: BLUE, textColor: WHITE,
-          fontStyle: 'bold', fontSize: 6.5,
+          fontStyle: 'bold', fontSize: 6,
           lineColor: [10, 30, 70], lineWidth: 0.2,
+          minCellHeight: 10,
         },
         styles: {
-          fontSize: 6.5, cellPadding: 1.8, textColor: DARK,
-          lineColor: BORDER, lineWidth: 0.2,
+          fontSize: 6.5, cellPadding: 1.6, textColor: DARK,
+          lineColor: BORDER, lineWidth: 0.2, halign: 'center',
         },
         alternateRowStyles: { fillColor: ALT },
         columnStyles: {
-          0: { cellWidth: 18, fontStyle: 'bold', halign: 'center' },
-          1: { cellWidth: 28, halign: 'center' },
-          2: { cellWidth: 16, fontStyle: 'bold', textColor: BLUE, halign: 'center' },
-          3: { cellWidth: LCW - 18 - 28 - 16, halign: 'left' },
+          0:  { cellWidth: COL_W.codigo,   fontStyle: 'bold', halign: 'center' },
+          1:  { cellWidth: COL_W.h_ini,    halign: 'center' },
+          2:  { cellWidth: COL_W.h_fin,    halign: 'center' },
+          3:  { cellWidth: COL_W.dt,       halign: 'center' },
+          4:  { cellWidth: COL_W.l_bulbo,  halign: 'center' },
+          5:  { cellWidth: COL_W.l_libre,  halign: 'center' },
+          6:  { cellWidth: COL_W.l_mecha,  halign: 'center' },
+          7:  { cellWidth: COL_W.l_total,  fontStyle: 'bold', textColor: BLUE, halign: 'center' },
+          8:  { cellWidth: COL_W.n_barras, halign: 'center' },
+          9:  { cellWidth: COL_W.ang_v,    halign: 'center' },
+          10: { cellWidth: COL_W.ang_h,    halign: 'center' },
+          11: { cellWidth: COL_W.reubico,  halign: 'center' },
+          12: { cellWidth: COL_W.dx,       halign: 'center' },
+          13: { cellWidth: COL_W.dy,       halign: 'center' },
         },
-        margin: { left: M, right: W - M - LCW },
+        margin: { left: M, right: M },
       })
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       currentY = (doc as any).lastAutoTable.finalY + 4
 
-      // ── Descripción y observaciones con salto de página automático ──
-      const drawLeft = (title: string, text: string, minH = 10) => {
-        const lines = text.trim() ? doc.splitTextToSize(text, LCW - 6) : ['—']
+      // ── Bloques de texto con salto de página automático ──────────────────────
+      const drawTextBlock = (title: string, text: string, minH = 10) => {
+        const lines = text.trim() ? doc.splitTextToSize(text, CW - 6) : ['—']
         const boxH = Math.max(lines.length * 4 + 4, minH)
 
         if (currentY + 5.5 + boxH + 3 > H - BOTTOM_M) {
@@ -444,99 +520,100 @@ export default function TabGenerador({
           currentY = M
         }
 
-        doc.setFillColor(...BLUE)
-        doc.setLineWidth(0)
-        doc.rect(M, currentY, LCW, 5.5, 'F')
+        doc.setFillColor(...BLUE); doc.setLineWidth(0)
+        doc.rect(M, currentY, CW, 5.5, 'F')
         doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...WHITE)
         doc.text(title, M + 3, currentY + 4)
         currentY += 5.5
+
         doc.setDrawColor(...BORDER); doc.setLineWidth(0.2)
-        doc.rect(M, currentY, LCW, boxH)
+        doc.rect(M, currentY, CW, boxH)
         doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...DARK)
         doc.text(lines, M + 3, currentY + 4)
         currentY += boxH + 3
       }
 
-      drawLeft('DESCRIPCIÓN DEL SUELO', form.descripcion_suelo, 12)
-      drawLeft('OBSERVACIONES Y/O RESTRICCIONES', form.observaciones, 12)
+      drawTextBlock('DESCRIPCIÓN DEL SUELO', form.descripcion_suelo, 12)
+      drawTextBlock('OBSERVACIONES Y/O RESTRICCIONES', form.observaciones, 12)
 
-      const leftEndY = currentY
-      const totalPages = doc.getNumberOfPages()
-      const currentPageNum = totalPages
+      // ── Esquema + Leyenda (lado a lado) ─────────────────────────────────────
+      const ESQ_W  = Math.round(CW * 0.65)
+      const LEY_W  = CW - ESQ_W - 4
+      const LEY_X  = M + ESQ_W + 4
+      const ESQ_H  = 48
 
-      // ── Columna derecha: esquema siempre en página 1 ──
-      // Si el contenido izquierdo desbordó a página 2+, el esquema llena toda la página 1.
-      // Si todo cabe en página 1, el esquema iguala la altura del contenido izquierdo.
-      doc.setPage(1)
-      const esqBoundY = totalPages === 1 ? leftEndY : H - BOTTOM_M
-      const esqTotalH = esqBoundY - M
-
-      doc.setFillColor(...BLUE); doc.setLineWidth(0)
-      doc.rect(RX, M, RCW, 6, 'F')
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5); doc.setTextColor(...WHITE)
-      const esqTitleLines = doc.splitTextToSize('ESQUEMA DE DISTRIBUCIÓN EN PLANTA', RCW - 4)
-      doc.text(esqTitleLines, RX + RCW / 2, M + (esqTitleLines.length > 1 ? 2 : 3.5), { align: 'center' })
-
-      const esqImgY = M + 6
-      const esqImgH = esqTotalH - 6
-
-      if (esqImgH > 0) {
-        if (imgEsq) {
-          try {
-            doc.setDrawColor(...BORDER); doc.setLineWidth(0.2)
-            doc.rect(RX, esqImgY, RCW, esqImgH)
-            const dims = await getImageDimensions(imgEsq)
-            const aspect = dims.w / dims.h
-            let imgW = RCW
-            let imgH = imgW / aspect
-            if (imgH > esqImgH) { imgH = esqImgH; imgW = imgH * aspect }
-            doc.addImage(imgEsq, RX + (RCW - imgW) / 2, esqImgY + (esqImgH - imgH) / 2, imgW, imgH)
-          } catch { /**/ }
-        } else {
-          doc.setDrawColor(...BLUE); doc.setLineWidth(0.6)
-          doc.rect(RX, esqImgY, RCW, esqImgH)
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...BLUE)
-          const phLines = doc.splitTextToSize('ESQUEMA DE DISTRIBUCIÓN EN PLANTA', RCW - 10)
-          doc.text(phLines, RX + RCW / 2, esqImgY + esqImgH / 2, { align: 'center', baseline: 'middle' })
-        }
-      }
-
-      // Volver a la página donde quedó el contenido izquierdo
-      doc.setPage(currentPageNum)
-
-      // ── Leyenda (alineada a la derecha) ──
-      currentY = leftEndY + 3
-      const LEYENDA_W = 80
-
-      if (currentY + 18 > H - BOTTOM_M) {
+      if (currentY + ESQ_H + 3 > H - BOTTOM_M) {
         doc.addPage()
         currentY = M
       }
 
+      // Esquema título
+      doc.setFillColor(...BLUE); doc.setLineWidth(0)
+      doc.rect(M, currentY, ESQ_W, 5.5, 'F')
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5); doc.setTextColor(...WHITE)
+      const esqTitleLines = doc.splitTextToSize('ESQUEMA DE DISTRIBUCIÓN EN PLANTA', ESQ_W - 4)
+      doc.text(esqTitleLines, M + ESQ_W / 2, currentY + (esqTitleLines.length > 1 ? 2 : 3.5), { align: 'center' })
+
+      // Esquema imagen
+      const esqImgY = currentY + 5.5
+      const esqImgH = ESQ_H - 5.5
+
+      doc.setDrawColor(...BORDER); doc.setLineWidth(0.2)
+      doc.rect(M, esqImgY, ESQ_W, esqImgH)
+
+      if (imgEsq) {
+        try {
+          const dims = await getImageDimensions(imgEsq)
+          const aspect = dims.w / dims.h
+          let imgW = ESQ_W - 2
+          let imgH = imgW / aspect
+          if (imgH > esqImgH - 2) { imgH = esqImgH - 2; imgW = imgH * aspect }
+          doc.addImage(imgEsq, M + (ESQ_W - imgW) / 2, esqImgY + (esqImgH - imgH) / 2, imgW, imgH)
+        } catch { /**/ }
+      } else {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...BLUE)
+        const ph = doc.splitTextToSize('ESQUEMA DE DISTRIBUCIÓN EN PLANTA', ESQ_W - 10)
+        doc.text(ph, M + ESQ_W / 2, esqImgY + esqImgH / 2, { align: 'center', baseline: 'middle' })
+      }
+
+      // Leyenda (derecha)
+      const leyendaStartY = currentY
       autoTable(doc, {
-        startY: currentY,
+        startY: leyendaStartY,
         body: [
-          ['Anclajes inyectados N°:', String(form.anclajes_inyectados || '0')],
+          ['Anclajes perforados N°:', String(form.anclajes_perforados || '0')],
           ['Anclajes acumulados N°:', String(form.anclajes_acumulados || '0')],
         ],
-        styles: { fontSize: 7.5, cellPadding: { top: 1.6, bottom: 1.6, left: 3, right: 3 }, textColor: DARK, lineColor: BORDER, lineWidth: 0.2 },
-        columnStyles: {
-          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: LEYENDA_W - 18 },
-          1: { fontStyle: 'bold', textColor: BLUE, halign: 'center', cellWidth: 18 },
+        styles: {
+          fontSize: 7.5, cellPadding: { top: 1.8, bottom: 1.8, left: 3, right: 3 },
+          textColor: DARK, lineColor: BORDER, lineWidth: 0.2,
         },
-        margin: { left: M + CW - LEYENDA_W, right: M },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: LEY_W - 20 },
+          1: { fontStyle: 'bold', textColor: BLUE, halign: 'center', cellWidth: 20 },
+        },
+        margin: { left: LEY_X, right: M },
         showHead: 'never',
         theme: 'grid',
       })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      currentY = (doc as any).lastAutoTable.finalY + 4
+      currentY = Math.max(
+        esqImgY + esqImgH,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (doc as any).lastAutoTable.finalY
+      ) + 4
 
-      // ── Equipo de inyección + Resumen técnico (juntos en la misma página) ──
-      const EQ_W  = CW * 0.55
+      // ── Equipo de Perforación + Resumen Técnico ──────────────────────────────
+      const EQ_W  = CW / 2
       const RES_W = CW - EQ_W
-      const equipoNeeded = 5.5 + 4 * 8.8 + 4
 
+      // longitud efectiva = suma de l_total
+      const longitudEfectiva = filas.reduce((s, r) => s + (parseFloat(r.l_total) || 0), 0)
+      // tiempo efectivo = suma de delta_tiempo en decimal → HH:MM
+      const tiempoDecimalTotal = filas.reduce((s, r) => s + (parseFloat(r.delta_tiempo) || 0), 0)
+      const tiempoEfectivoStr = decimalToHHMM(tiempoDecimalTotal)
+
+      const equipoNeeded = 5.5 + 5 * 8.8 + 4
       if (currentY + equipoNeeded > H - BOTTOM_M) {
         doc.addPage()
         currentY = M
@@ -546,7 +623,7 @@ export default function TabGenerador({
       doc.rect(M, currentY, EQ_W, 5.5, 'F')
       doc.rect(M + EQ_W, currentY, RES_W, 5.5, 'F')
       doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...WHITE)
-      doc.text('EQUIPO DE INYECCIÓN', M + 3, currentY + 4)
+      doc.text('EQUIPO DE PERFORACIÓN', M + 3, currentY + 4)
       doc.text('RESUMEN TÉCNICO', M + EQ_W + 3, currentY + 4)
       currentY += 5.5
 
@@ -555,15 +632,16 @@ export default function TabGenerador({
       autoTable(doc, {
         startY: eqStartY,
         body: [
-          ['Central de Inyección:', form.central_inyeccion || '—'],
-          ['Supervisor:',           form.supervisor         || '—'],
-          ['Oper. Perforista:',     form.oper_perforista    || '—'],
-          ['Oper. Inyección:',      form.oper_inyeccion     || '—'],
+          ['Perforadora Hidráulica:', form.perforadora_hidraulica || '—'],
+          ['Compresora de Aire:',     form.compresora_aire        || '—'],
+          ['Supervisor:',             form.supervisor              || '—'],
+          ['Oper. Perforista:',       form.oper_perforista         || '—'],
+          ['Oper. Compresorista:',    form.oper_compresorista      || '—'],
         ],
         styles: { fontSize: 7, cellPadding: 1.6, textColor: DARK, lineColor: BORDER, lineWidth: 0.2 },
         columnStyles: {
-          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: 38 },
-          1: { cellWidth: EQ_W - 38 },
+          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: 42 },
+          1: { cellWidth: EQ_W - 42 },
         },
         margin: { left: M, right: W - M - EQ_W },
         showHead: 'never',
@@ -576,13 +654,14 @@ export default function TabGenerador({
       autoTable(doc, {
         startY: eqStartY,
         body: [
-          ['N° anclajes inyectados al 100%:', `${filas.length} und`],
-          ['Consumo de cementos total:',      `${totalBls.toFixed(2)} Bls`],
+          ['N° anclajes instalados:',        `${filas.length} und`],
+          ['Longitud efectiva instalada:',    `${longitudEfectiva.toFixed(2)} m`],
+          ['Tiempo efectivo de trabajo:',     `${tiempoEfectivoStr} h`],
         ],
         styles: { fontSize: 7, cellPadding: 1.6, textColor: DARK, lineColor: BORDER, lineWidth: 0.2 },
         columnStyles: {
-          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: RES_W - 24 },
-          1: { cellWidth: 24, fontStyle: 'bold', textColor: BLUE, halign: 'right' },
+          0: { fontStyle: 'bold', fillColor: LBLUE, textColor: [26, 58, 110], cellWidth: RES_W - 28 },
+          1: { cellWidth: 28, fontStyle: 'bold', textColor: BLUE, halign: 'right' },
         },
         margin: { left: M + EQ_W, right: M },
         showHead: 'never',
@@ -593,7 +672,7 @@ export default function TabGenerador({
       const resEndY = (doc as any).lastAutoTable.finalY
       currentY = Math.max(eqEndY, resEndY) + 4
 
-      // ── Firmas (siempre juntas al final de la última página) ──
+      // ── Firmas ───────────────────────────────────────────────────────────────
       const FW = CW / 2
       const FH = 22
 
@@ -603,8 +682,8 @@ export default function TabGenerador({
       }
 
       const firmas = [
-        { empresa: 'SOIL ROCK S.A.C.',   nombre: form.supervisor_sr,            titulo: 'Supervisor Soil Rock'   },
-        { empresa: clienteNombre || '—', nombre: form.supervisor_cliente_nombre, titulo: 'Supervisor del Cliente' },
+        { empresa: 'SOIL ROCK S.A.C.',   nombre: form.supervisor_obra,  titulo: 'Supervisor Soil Rock' },
+        { empresa: clienteNombre || '—', nombre: form.ingeniero_civil,  titulo: 'Supervisor del Cliente' },
       ]
 
       firmas.forEach((firma, i) => {
@@ -633,23 +712,24 @@ export default function TabGenerador({
         doc.text(firma.titulo, fx + FW / 2, sigY + 4.5, { align: 'center' })
       })
 
-      const filename = `${form.codigo || 'reporte-inyeccion'}_V${form.version || '00'}_${form.fecha || 'fecha'}.pdf`
+      const filename = `${form.codigo || 'reporte-anclaje'}_V${form.version || '00'}_${form.fecha || 'fecha'}.pdf`
       doc.save(filename)
     } catch (e) {
-      console.error('[PDF Inyección]', e)
+      console.error('[PDF Anclaje]', e)
       setError('Error al generar PDF')
     } finally {
       setGenPdf(false)
     }
   }
 
-  function setFila(id: string, field: keyof InyeccionFila, value: string) {
-    setFilas(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
+  function setFila(id: string, field: keyof AnclajeRow, value: string) {
+    setFilas(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
   }
 
   const resumen = useMemo(() => ({
-    num: filas.length,
-    totalBls: filas.reduce((s, a) => s + (parseFloat(a.total) || 0), 0).toFixed(2),
+    nAnclajes:         filas.length,
+    longitudEfectiva:  filas.reduce((s, r) => s + (parseFloat(r.l_total) || 0), 0).toFixed(2),
+    tiempoEfectivo:    decimalToHHMM(filas.reduce((s, r) => s + (parseFloat(r.delta_tiempo) || 0), 0)),
   }), [filas])
 
   // ── Shared styles ──
@@ -674,7 +754,7 @@ export default function TabGenerador({
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e' }}>
-            Reportes de Inyección para Anclajes
+            Reportes de Perforación e Instalación de Anclajes
           </span>
           <button
             onClick={openNew}
@@ -722,7 +802,7 @@ export default function TabGenerador({
                     <td style={{ padding: '10px 14px', color: '#6b7280' }}>
                       {new Date(r.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
-                    <td style={{ padding: '10px 14px', color: '#6b7280' }}>{r.anclajes?.length ?? 0}</td>
+                    <td style={{ padding: '10px 14px', color: '#6b7280' }}>{Array.isArray(r.anclajes) ? r.anclajes.length : 0}</td>
                     <td style={{ padding: '10px 14px', color: '#b0b7c3' }}>
                       {new Date(r.created_at).toLocaleDateString('es-PE')}
                     </td>
@@ -745,6 +825,9 @@ export default function TabGenerador({
   }
 
   // ── Form view ──────────────────────────────────────────────────────────────
+  const colMechaLabel  = form.col_variante === 'cables' ? 'L. Tensado' : 'L. Mecha'
+  const colBarrasLabel = form.col_variante === 'cables' ? 'N° Cables'  : 'N° Barras'
+
   return (
     <div>
       {/* Toolbar */}
@@ -758,7 +841,7 @@ export default function TabGenerador({
           </button>
           <span style={{ color: '#e8eaed' }}>·</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e' }}>
-            {editingId ? `Editar — ${form.codigo}` : 'Nuevo reporte de inyección'}
+            {editingId ? `Editar — ${form.codigo}` : 'Nuevo reporte de perforación'}
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -801,12 +884,12 @@ export default function TabGenerador({
       <div style={card}>
         <p style={secTitle}>Datos generales</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-          <Field label="Código del reporte">
-            <input style={inp} value={form.codigo} placeholder="SR26.058-INY-001"
+          <Field label="Código del documento">
+            <input style={inp} value={form.codigo} placeholder="SG-CA-001"
               onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))} />
           </Field>
           <Field label="Versión">
-            <input style={inp} value={form.version} placeholder="001"
+            <input style={inp} value={form.version} placeholder="003"
               onChange={e => setForm(p => ({ ...p, version: e.target.value }))} />
           </Field>
           <Field label="Fecha del reporte">
@@ -828,22 +911,22 @@ export default function TabGenerador({
               onChange={e => setForm(p => ({ ...p, ubicacion: e.target.value }))} />
           </Field>
           <Field label="Metodología">
-            <input style={inp} value={form.metodologia}
+            <input style={inp} value={form.metodologia} placeholder="Perforación Rotopercusiva"
               onChange={e => setForm(p => ({ ...p, metodologia: e.target.value }))} />
           </Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <Field label="Fluido">
-            <input style={inp} value={form.fluido} placeholder="Agua - Cemento a/c: 0.50"
-              onChange={e => setForm(p => ({ ...p, fluido: e.target.value }))} />
+          <Field label="Sistema">
+            <input style={inp} value={form.sistema} placeholder='Perforación concéntrica (Broca + Corona)'
+              onChange={e => setForm(p => ({ ...p, sistema: e.target.value }))} />
           </Field>
-          <Field label="Cemento">
-            <input style={inp} value={form.cemento} placeholder="Portland Tipo HS"
-              onChange={e => setForm(p => ({ ...p, cemento: e.target.value }))} />
+          <Field label="Martillo de fondo DTH">
+            <input style={inp} value={form.martillo_dth} placeholder="Simplex"
+              onChange={e => setForm(p => ({ ...p, martillo_dth: e.target.value }))} />
           </Field>
-          <Field label="Aditivo">
-            <input style={inp} value={form.aditivo} placeholder="N.A."
-              onChange={e => setForm(p => ({ ...p, aditivo: e.target.value }))} />
+          <Field label='Diámetro de Casing'>
+            <input style={inp} value={form.diametro_casing} placeholder='127 mm (5")'
+              onChange={e => setForm(p => ({ ...p, diametro_casing: e.target.value }))} />
           </Field>
         </div>
       </div>
@@ -869,9 +952,34 @@ export default function TabGenerador({
             file={esquemaFile} preview={esquemaPreview} hasSaved={!!esquemaPath}
             inputRef={esquemaInputRef}
             onChange={f => { setEsquemaFile(f); setEsquemaPreview(URL.createObjectURL(f)) }}
-            hint="Aparece a la derecha de la tabla en el PDF"
+            hint="Aparece bajo la tabla en el PDF"
           />
         </div>
+      </div>
+
+      {/* Tipo de anclaje / variante de columnas */}
+      <div style={card}>
+        <p style={secTitle}>Tipo de anclaje</p>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {(['barras', 'cables'] as const).map(v => (
+            <button
+              key={v}
+              onClick={() => setForm(p => ({ ...p, col_variante: v }))}
+              style={{
+                padding: '7px 18px', fontSize: 12, fontWeight: 500, borderRadius: 6,
+                cursor: 'pointer',
+                backgroundColor: form.col_variante === v ? '#1a3a6e' : '#f9fafb',
+                color:           form.col_variante === v ? '#fff'     : '#6b7280',
+                border:          form.col_variante === v ? 'none'     : '0.5px solid #e8eaed',
+              }}
+            >
+              {v === 'barras' ? 'Barras (L. Mecha / N° Barras)' : 'Cables — tipo 3.xx (L. Tensado / N° Cables)'}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, marginBottom: 0 }}>
+          Esto cambia los encabezados de columna en la tabla y el PDF.
+        </p>
       </div>
 
       {/* Tabla de anclajes */}
@@ -879,7 +987,7 @@ export default function TabGenerador({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <p style={{ ...secTitle, margin: 0 }}>Tabla de anclajes</p>
           <button
-            onClick={() => setFilas(p => [...p, newInyeccionRow()])}
+            onClick={() => setFilas(p => [...p, newAnclajeRow()])}
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               fontSize: 12, color: '#1a3a6e',
@@ -890,39 +998,75 @@ export default function TabGenerador({
             <IconPlus size={12} /> Agregar fila
           </button>
         </div>
+        <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8, marginTop: -8 }}>
+          Las horas (Inicio / Final / Dif. Tiempo) se ingresan como fracción decimal de día (formato Excel). Ej: 0.4993 → 11:59
+        </p>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
             <thead>
               <tr style={{ backgroundColor: '#1a3a6e' }}>
-                {['Código Anclaje', 'Consumo Cemento por Manguera en Boca (Bls)', 'Total (Bls)', 'Estado', ''].map(h => (
-                  <th key={h} style={{ padding: '7px 8px', textAlign: 'left', color: '#fff', fontWeight: 500, fontSize: 10 }}>{h}</th>
+                {[
+                  'Código', 'Hora Inicio', 'Hora Final', 'Dif. Tiempo',
+                  'L. Bulbo', 'L. Libre', colMechaLabel, 'L. Total',
+                  colBarrasLabel, 'Áng. Vertical', 'Áng. Horiz.', 'Reubicó', 'D X', 'D Y', '',
+                ].map(h => (
+                  <th key={h} style={{
+                    padding: '6px 5px', textAlign: 'center',
+                    color: '#fff', fontWeight: 500, fontSize: 9,
+                    whiteSpace: 'nowrap',
+                  }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filas.map((a, i) => {
+              {filas.map((r, i) => {
                 const bg = i % 2 === 0 ? '#fff' : '#f9fafb'
                 const ci: React.CSSProperties = {
-                  width: '100%', padding: '4px 5px', fontSize: 11,
-                  border: '0.5px solid #e8eaed', borderRadius: 4,
+                  width: '100%', padding: '3px 4px', fontSize: 10,
+                  border: '0.5px solid #e8eaed', borderRadius: 3,
                   outline: 'none', backgroundColor: '#fff', color: '#1a1d1e',
-                  boxSizing: 'border-box',
+                  boxSizing: 'border-box', textAlign: 'center',
                 }
-                const td: React.CSSProperties = { padding: '3px', backgroundColor: bg, borderBottom: '0.5px solid #f4f6f8' }
+                const td: React.CSSProperties = {
+                  padding: '2px', backgroundColor: bg,
+                  borderBottom: '0.5px solid #f4f6f8',
+                }
+                const numCi = { ...ci, width: 62 }
                 return (
-                  <tr key={a.id}>
-                    <td style={td}><input style={{ ...ci, width: 80 }} value={a.codigo} placeholder="A1.08" onChange={e => setFila(a.id, 'codigo', e.target.value)} /></td>
-                    <td style={td}><input type="number" style={{ ...ci, width: 80 }} value={a.consumo_boca} placeholder="0.00" onChange={e => setFila(a.id, 'consumo_boca', e.target.value)} /></td>
-                    <td style={td}><input type="number" style={{ ...ci, width: 80 }} value={a.total} placeholder="0.00" onChange={e => setFila(a.id, 'total', e.target.value)} /></td>
-                    <td style={{ ...td, width: '100%' }}>
-                      <input style={{ ...ci }} value={a.estado}
-                        placeholder="Anclaje inyectado al 100%. Se evidencia salida de lechada por la boca de la perforación."
-                        onChange={e => setFila(a.id, 'estado', e.target.value)} />
+                  <tr key={r.id}>
+                    <td style={td}><input style={{ ...ci, width: 72 }} value={r.codigo} placeholder="A1.08" onChange={e => setFila(r.id, 'codigo', e.target.value)} /></td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <input style={numCi} value={r.hora_inicio} placeholder="0.4993" onChange={e => setFila(r.id, 'hora_inicio', e.target.value)} />
+                        {r.hora_inicio && <span style={{ fontSize: 8, color: '#6b7280' }}>{decimalToHHMM(r.hora_inicio)}</span>}
+                      </div>
                     </td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <input style={numCi} value={r.hora_final} placeholder="0.5000" onChange={e => setFila(r.id, 'hora_final', e.target.value)} />
+                        {r.hora_final && <span style={{ fontSize: 8, color: '#6b7280' }}>{decimalToHHMM(r.hora_final)}</span>}
+                      </div>
+                    </td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <input style={numCi} value={r.delta_tiempo} placeholder="0.0007" onChange={e => setFila(r.id, 'delta_tiempo', e.target.value)} />
+                        {r.delta_tiempo && <span style={{ fontSize: 8, color: '#6b7280' }}>{decimalToHHMM(r.delta_tiempo)}</span>}
+                      </div>
+                    </td>
+                    <td style={td}><input style={numCi} value={r.l_bulbo} placeholder="0.00" onChange={e => setFila(r.id, 'l_bulbo', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.l_libre} placeholder="0.00" onChange={e => setFila(r.id, 'l_libre', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.l_mecha} placeholder="0.00" onChange={e => setFila(r.id, 'l_mecha', e.target.value)} /></td>
+                    <td style={td}><input style={{ ...numCi, fontWeight: 600, color: '#1a3a6e' }} value={r.l_total} placeholder="0.00" onChange={e => setFila(r.id, 'l_total', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.n_barras} placeholder="1" onChange={e => setFila(r.id, 'n_barras', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.angulo_vertical} placeholder="0°" onChange={e => setFila(r.id, 'angulo_vertical', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.angulo_horiz} placeholder="0°" onChange={e => setFila(r.id, 'angulo_horiz', e.target.value)} /></td>
+                    <td style={td}><input style={{ ...numCi, width: 50 }} value={r.reubico} placeholder="No" onChange={e => setFila(r.id, 'reubico', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.dx} placeholder="0.00" onChange={e => setFila(r.id, 'dx', e.target.value)} /></td>
+                    <td style={td}><input style={numCi} value={r.dy} placeholder="0.00" onChange={e => setFila(r.id, 'dy', e.target.value)} /></td>
                     <td style={{ ...td, textAlign: 'center' }}>
-                      <button onClick={() => setFilas(p => p.filter(r => r.id !== a.id))}
-                        style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                        <IconTrash size={13} />
+                      <button onClick={() => setFilas(p => p.filter(x => x.id !== r.id))}
+                        style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 3 }}>
+                        <IconTrash size={12} />
                       </button>
                     </td>
                   </tr>
@@ -955,9 +1099,9 @@ export default function TabGenerador({
       <div style={card}>
         <p style={secTitle}>Leyenda</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Anclajes inyectados">
-            <input type="number" style={inp} value={form.anclajes_inyectados}
-              onChange={e => setForm(p => ({ ...p, anclajes_inyectados: e.target.value }))} />
+          <Field label="Anclajes perforados (día)">
+            <input type="number" style={inp} value={form.anclajes_perforados}
+              onChange={e => setForm(p => ({ ...p, anclajes_perforados: e.target.value }))} />
           </Field>
           <Field label="Anclajes acumulados">
             <input type="number" style={inp} value={form.anclajes_acumulados}
@@ -966,16 +1110,17 @@ export default function TabGenerador({
         </div>
       </div>
 
-      {/* Equipo de inyección */}
+      {/* Equipo de perforación */}
       <div style={card}>
-        <p style={secTitle}>Equipo de inyección</p>
+        <p style={secTitle}>Equipo de perforación</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {([
-            ['central_inyeccion', 'Central de Inyección'],
-            ['supervisor',        'Supervisor'],
-            ['oper_perforista',   'Oper. Perforista'],
-            ['oper_inyeccion',    'Oper. Inyección'],
-          ] as [keyof InyeccionFormState, string][]).map(([field, label]) => (
+            ['perforadora_hidraulica', 'Perforadora Hidráulica'],
+            ['compresora_aire',        'Compresora de Aire'],
+            ['supervisor',             'Supervisor'],
+            ['oper_perforista',        'Oper. Perforista'],
+            ['oper_compresorista',     'Oper. Compresorista'],
+          ] as [keyof AnclajeFormState, string][]).map(([field, label]) => (
             <Field key={field} label={label}>
               <input style={inp} value={form[field] as string}
                 onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))} />
@@ -987,9 +1132,10 @@ export default function TabGenerador({
       {/* Resumen técnico */}
       <div style={{ ...card, backgroundColor: '#eef2f9', border: '0.5px solid #1a3a6e22', marginBottom: 16 }}>
         <p style={secTitle}>Resumen técnico</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <KPI label="N° anclajes inyectados al 100%" value={String(resumen.num)} />
-          <KPI label="Consumo de cementos total" value={`${resumen.totalBls} Bls`} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+          <KPI label="N° anclajes instalados"       value={`${resumen.nAnclajes} und`} />
+          <KPI label="Longitud efectiva instalada"  value={`${resumen.longitudEfectiva} m`} />
+          <KPI label="Tiempo efectivo de trabajo"   value={`${resumen.tiempoEfectivo} h`} />
         </div>
       </div>
 
@@ -999,8 +1145,8 @@ export default function TabGenerador({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <Field label="Firma Supervisor Soil Rock (nombre)">
-              <input style={inp} value={form.supervisor_sr} placeholder="Nombre completo"
-                onChange={e => setForm(p => ({ ...p, supervisor_sr: e.target.value }))} />
+              <input style={inp} value={form.supervisor_obra} placeholder="Nombre completo"
+                onChange={e => setForm(p => ({ ...p, supervisor_obra: e.target.value }))} />
             </Field>
             <div style={{ marginTop: 10, borderTop: '1.5px solid #9ca3af', paddingTop: 6, fontSize: 11, color: '#6b7280' }}>
               Supervisor Soil Rock
@@ -1008,8 +1154,8 @@ export default function TabGenerador({
           </div>
           <div>
             <Field label="Firma Supervisor Cliente (nombre)">
-              <input style={inp} value={form.supervisor_cliente_nombre} placeholder="Nombre completo"
-                onChange={e => setForm(p => ({ ...p, supervisor_cliente_nombre: e.target.value }))} />
+              <input style={inp} value={form.ingeniero_civil} placeholder="Nombre completo"
+                onChange={e => setForm(p => ({ ...p, ingeniero_civil: e.target.value }))} />
             </Field>
             <div style={{ marginTop: 10, borderTop: '1.5px solid #9ca3af', paddingTop: 6, fontSize: 11, color: '#6b7280' }}>
               Supervisor del Cliente

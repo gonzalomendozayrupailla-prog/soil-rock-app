@@ -156,6 +156,7 @@ model Proyecto {
   fecha_cierre_estimada DateTime
   monto_contrato        Decimal      @default(0)
   avance_general        Decimal      @default(0)
+  ubicacion             String?
   created_at            DateTime     @default(now())
 
   cliente        Cliente            @relation(fields: [cliente_id], references: [id])
@@ -167,6 +168,7 @@ model Proyecto {
   reportes_campo   ReporteCampo[]
   reportes_anclaje   ReporteAnclaje[]
   reportes_inyeccion ReporteInyeccion[]
+  reportes_malla     ReporteMalla[]
   valorizaciones     Valorizacion[]
   facturas       Factura[]
   garantias      Garantia[]
@@ -389,6 +391,61 @@ model ReporteInyeccion {
   proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
 
   @@map("reportes_inyeccion")
+}
+
+// Reportes de Malla
+
+model ReporteMalla {
+  id                        String   @id @default(cuid())
+  proyecto_id               String
+  codigo                    String
+  version                   String   @default("00")
+  fecha_doc                 String   @default("")
+  especialista              String?
+  contratista               String?
+  entidad                   String?
+  ubicacion                 String?
+  estructura                String?
+  fecha                     String?
+  n_registro                String?
+  plano_referencial         String?
+  nivel_corona              String?
+  nivel_pie_talud           String?
+  n_columnas_malla          String?
+  malla_tipo                String?
+  malla_marca               String?
+  malla_abertura            String?
+  malla_diametro_alambre    String?
+  malla_tipo_union          String?
+  malla_norma               String?
+  alambre_material          String?
+  alambre_diametro          String?
+  alambre_tension_rotura    String?
+  grapas_material           String?
+  grapas_diametro           String?
+  grapas_tuercas            String?
+  inst_fecha                String?
+  inst_ancho_rollo          String?
+  inst_altura_rollo_fab     String?
+  inst_long_prot_ini        String?
+  inst_altura_prot_ini      String?
+  inst_long_prot_fin        String?
+  inst_altura_prot_fin      String?
+  inst_area_protegida       String?
+  inst_uso_grapas           String?
+  representante_sr          String?
+  representante_contratista String?
+  logo_sr_path              String?
+  logo_cliente_path         String?
+  foto_registro_1_path      String?
+  foto_registro_2_path      String?
+  elevacion_path            String?
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  proyecto Proyecto @relation(fields: [proyecto_id], references: [id])
+
+  @@map("reportes_malla")
 }
 
 // Valorizaciones

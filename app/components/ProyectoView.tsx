@@ -18,6 +18,8 @@ import TabEjecucion from '@/app/components/TabEjecucion'
 import TabValorizaciones from '@/app/components/TabValorizaciones'
 import TabFacturacion from '@/app/components/TabFacturacion'
 import TabGenerador from '@/app/components/TabGenerador'
+import TabGeneradorAnclaje from '@/app/components/TabGeneradorAnclaje'
+import TabGeneradorMallas from '@/app/components/TabGeneradorMallas'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ interface Cliente  { id: string; razon_social: string; ruc: string; sector: stri
 interface Proyecto {
   id: string; codigo: string; nombre: string; sector: string; fase: string
   moneda: string; monto_contrato: number; avance_general: number
+  ubicacion?: string | null
   fecha_inicio: string; fecha_cierre_estimada: string; created_at: string
   cliente: Cliente; ingeniero: { nombre: string }
 }
@@ -138,6 +141,7 @@ export default function ProyectoView({
   const [moneda, setMoneda] = useState(proyecto.moneda)
   const [nombre, setNombre] = useState(proyecto.nombre)
   const [sector, setSector] = useState(proyecto.sector)
+  const [ubicacion, setUbicacion] = useState(proyecto.ubicacion ?? '')
 
   const [avance, setAvance] = useState(proyecto.avance_general)
   const [fechaInicio, setFechaInicio] = useState(proyecto.fecha_inicio)
@@ -147,6 +151,7 @@ export default function ProyectoView({
   const [editForm, setEditForm] = useState({
     nombre: proyecto.nombre,
     sector: proyecto.sector,
+    ubicacion: proyecto.ubicacion ?? '',
     moneda: proyecto.moneda,
     monto_contrato: proyecto.monto_contrato > 0 ? String(proyecto.monto_contrato) : '',
     fecha_inicio: proyecto.fecha_inicio.slice(0, 10),
@@ -193,7 +198,9 @@ export default function ProyectoView({
     ...(FASES_CON_TABS_OP.has(fase) ? [
       { key: 'ingenieria', label: 'Ingeniería' },
       ...(verReportesCampo ? [{ key: 'ejecucion', label: 'Ejecución' }] : []),
-      { key: 'generador', label: 'Generador' },
+      { key: 'generador',   label: 'Inyección' },
+      { key: 'perforacion', label: 'Perforación' },
+      { key: 'malla',       label: 'Malla' },
       // Valorizaciones y Facturación ocultos por ahora
     ] : []),
   ]
@@ -331,6 +338,7 @@ export default function ProyectoView({
       const body: Record<string, unknown> = {}
       if (editForm.nombre !== nombre)                         body.nombre = editForm.nombre
       if (editForm.sector !== sector)                         body.sector = editForm.sector
+      if (editForm.ubicacion !== ubicacion)                   body.ubicacion = editForm.ubicacion
       if (editForm.moneda !== moneda)                         body.moneda = editForm.moneda
       if (nuevoMonto !== monto)                               body.monto_contrato = nuevoMonto
       if (editForm.fecha_inicio !== fechaInicio.slice(0, 10)) body.fecha_inicio = editForm.fecha_inicio
@@ -346,6 +354,7 @@ export default function ProyectoView({
       }
       if (editForm.nombre)  setNombre(editForm.nombre)
       if (editForm.sector)  setSector(editForm.sector)
+      setUbicacion(editForm.ubicacion)
       if (editForm.moneda)  setMoneda(editForm.moneda)
       setMonto(nuevoMonto)
       setFechaInicio(editForm.fecha_inicio)
@@ -568,7 +577,7 @@ export default function ProyectoView({
                     onClick={() => {
                       setIsEditing(true)
                       setEditForm({
-                        nombre, sector, moneda,
+                        nombre, sector, ubicacion, moneda,
                         monto_contrato: monto > 0 ? String(monto) : '',
                         fecha_inicio: fechaInicio.slice(0, 10),
                         fecha_cierre_estimada: fechaCierre.slice(0, 10),
@@ -616,6 +625,14 @@ export default function ProyectoView({
                     </select>
                   )
                   : <span style={{ fontSize: 13, color: '#1a1d1e' }}>{sector}</span>
+                }
+              </div>
+
+              <div>
+                <span style={fieldLabel}>Ubicación</span>
+                {isEditing
+                  ? <input value={editForm.ubicacion} onChange={(e) => setEditForm((p) => ({ ...p, ubicacion: e.target.value }))} placeholder="Ej. Km 42, Carretera Central" style={inputStyle} />
+                  : <span style={{ fontSize: 13, color: ubicacion ? '#1a1d1e' : '#9ca3af' }}>{ubicacion || '—'}</span>
                 }
               </div>
 
@@ -844,9 +861,28 @@ export default function ProyectoView({
         <TabEjecucion proyectoId={proyecto.id} />
       )}
 
-      {/* ── Tab: Generador ── */}
+      {/* ── Tab: Generador Inyección ── */}
       {activeTab === 'generador' && (
         <TabGenerador
+          proyectoId={proyecto.id}
+          proyectoNombre={nombre}
+          clienteNombre={proyecto.cliente.razon_social}
+          proyectoUbicacion={ubicacion}
+        />
+      )}
+
+      {/* ── Tab: Generador Perforación ── */}
+      {activeTab === 'perforacion' && (
+        <TabGeneradorAnclaje
+          proyectoId={proyecto.id}
+          proyectoNombre={nombre}
+          clienteNombre={proyecto.cliente.razon_social}
+        />
+      )}
+
+      {/* ── Tab: Generador Mallas ── */}
+      {activeTab === 'malla' && (
+        <TabGeneradorMallas
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
           clienteNombre={proyecto.cliente.razon_social}

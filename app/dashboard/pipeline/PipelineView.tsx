@@ -261,6 +261,7 @@ function NuevaOportunidadModal({
     moneda: 'PEN',
     monto_contrato: '',
     fecha_inicio: new Date().toISOString().slice(0, 10),
+    ubicacion: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -747,6 +748,17 @@ function NuevaOportunidadModal({
               type="date"
               value={form.fecha_inicio}
               onChange={(e) => set('fecha_inicio', e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Ubicación */}
+          <div>
+            <label style={labelStyle}>Ubicación</label>
+            <input
+              value={form.ubicacion}
+              onChange={(e) => set('ubicacion', e.target.value)}
+              placeholder="Ej. Km 42, Carretera Central"
               style={inputStyle}
             />
           </div>

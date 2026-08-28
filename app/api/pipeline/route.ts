@@ -44,21 +44,24 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await req.json()
-    const { nombre, cliente_id, sector, monto_contrato, fecha_inicio, moneda } = body
+    const { nombre, cliente_id, sector, monto_contrato, fecha_inicio, moneda, ubicacion } = body
 
     if (!nombre || !cliente_id || !sector || !fecha_inicio) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
-    // Código correlativo SR{YY}.{NNN}
-    const todos = await prisma.proyecto.findMany({ select: { codigo: true } })
-    const maxNum = todos.reduce((max, p) => {
-      const parts = p.codigo.split('.')
-      const num = parseInt(parts[1] ?? '0', 10)
+    // Código correlativo SR{YY}.{NNN} — reinicia en 001 cada año
+    const year2 = String(new Date().getFullYear()).slice(-2)
+    const prefix = `SR${year2}.`
+    const todosDelAnio = await prisma.proyecto.findMany({
+      where: { codigo: { startsWith: prefix } },
+      select: { codigo: true },
+    })
+    const maxNum = todosDelAnio.reduce((max, p) => {
+      const num = parseInt(p.codigo.slice(prefix.length), 10)
       return Math.max(max, isNaN(num) ? 0 : num)
     }, 0)
-    const year2 = String(new Date().getFullYear()).slice(-2)
-    const codigo = `SR${year2}.${String(maxNum + 1).padStart(3, '0')}`
+    const codigo = `${prefix}${String(maxNum + 1).padStart(3, '0')}`
 
     // ingeniero_id = usuario de sesión, con fallback al primer usuario activo
     let ingenieroId = session.id
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
         fecha_cierre_estimada: fechaCierre,
         monto_contrato,
         avance_general: 0,
+        ubicacion: ubicacion || null,
       },
     })
 

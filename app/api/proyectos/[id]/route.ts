@@ -53,6 +53,7 @@ export async function PATCH(
     if (body.avance_general !== undefined)        data.avance_general = Number(body.avance_general)
     if (body.fecha_inicio !== undefined)          data.fecha_inicio = new Date(body.fecha_inicio)
     if (body.fecha_cierre_estimada !== undefined) data.fecha_cierre_estimada = new Date(body.fecha_cierre_estimada)
+    if (body.ubicacion !== undefined)             data.ubicacion = body.ubicacion || null
 
     const proyecto = await prisma.proyecto.update({ where: { id }, data })
     const verMontos = session.permisos['ver_montos'] !== false
