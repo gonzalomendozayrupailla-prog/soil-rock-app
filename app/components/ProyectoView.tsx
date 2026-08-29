@@ -437,7 +437,7 @@ export default function ProyectoView({
         </div>
 
         <h1 style={{ fontSize: 20, fontWeight: 600, color: '#1a1d1e', margin: '0 0 2px' }}>{nombre}</h1>
-        <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>{proyecto.cliente.razon_social}</p>
+        <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>{cliente.razon_social}</p>
 
         {/* ── Action Buttons ── */}
         {fase !== 'cancelado' && fase !== 'cerrado' && (
@@ -964,7 +964,7 @@ export default function ProyectoView({
         <TabGenerador
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
-          clienteNombre={proyecto.cliente.razon_social}
+          clienteNombre={cliente.razon_social}
           proyectoUbicacion={ubicacion}
         />
       )}
@@ -974,7 +974,7 @@ export default function ProyectoView({
         <TabGeneradorAnclaje
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
-          clienteNombre={proyecto.cliente.razon_social}
+          clienteNombre={cliente.razon_social}
           proyectoUbicacion={ubicacion}
         />
       )}
@@ -984,7 +984,7 @@ export default function ProyectoView({
         <TabGeneradorMallas
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
-          clienteNombre={proyecto.cliente.razon_social}
+          clienteNombre={cliente.razon_social}
           proyectoUbicacion={ubicacion}
         />
       )}
