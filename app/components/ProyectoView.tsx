@@ -380,7 +380,7 @@ export default function ProyectoView({
     setClienteIdForm(cliente.id)
     if (clientesList.length === 0) {
       setLoadingClientes(true)
-      const res = await fetch('/api/clientes?limit=50')
+      const res = await fetch('/api/clientes?limit=200')
       if (res.ok) {
         const json = await res.json()
         setClientesList(json.data)
