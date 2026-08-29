@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       ver_dashboard: true,
       ver_montos: false,
       ver_comercial: true,
+      ver_clientes: true,
     }
 
     const usuario = await prisma.usuario.create({
