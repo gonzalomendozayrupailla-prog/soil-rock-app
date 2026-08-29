@@ -176,7 +176,15 @@ export default function ProyectoView({
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? 'info')
   const [error, setError] = useState('')
 
+  const [cliente, setCliente] = useState(proyecto.cliente)
+  const [isEditingCliente, setIsEditingCliente] = useState(false)
+  const [clienteIdForm, setClienteIdForm] = useState(proyecto.cliente.id)
+  const [clientesList, setClientesList] = useState<{ id: string; razon_social: string }[]>([])
+  const [loadingClientes, setLoadingClientes] = useState(false)
+  const [savingCliente, setSavingCliente] = useState(false)
+
   useEffect(() => { setActiveTab('info') }, [proyecto.id])
+  useEffect(() => { setCliente(proyecto.cliente) }, [proyecto.cliente.id])
 
   // ── Permisos ──────────────────────────────────────────────────────────────
   const verMontos = usePuede('ver_montos')
@@ -364,6 +372,43 @@ export default function ProyectoView({
       setError('Error de conexión')
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  async function openClienteEdit() {
+    setIsEditingCliente(true)
+    setClienteIdForm(cliente.id)
+    if (clientesList.length === 0) {
+      setLoadingClientes(true)
+      const res = await fetch('/api/clientes?limit=50')
+      if (res.ok) {
+        const json = await res.json()
+        setClientesList(json.data)
+      }
+      setLoadingClientes(false)
+    }
+  }
+
+  async function handleSaveCliente() {
+    if (clienteIdForm === cliente.id) { setIsEditingCliente(false); return }
+    setSavingCliente(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/proyectos/${proyecto.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: clienteIdForm }),
+      })
+      if (res.ok) {
+        setIsEditingCliente(false)
+        router.refresh()
+      } else {
+        setError('Error al cambiar cliente')
+      }
+    } catch {
+      setError('Error de conexión')
+    } finally {
+      setSavingCliente(false)
     }
   }
 
@@ -722,26 +767,79 @@ export default function ProyectoView({
 
           {/* Cliente */}
           <div style={{ backgroundColor: '#ffffff', border: '0.5px solid #e8eaed', borderRadius: 10, padding: 18 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e', display: 'block', marginBottom: 16 }}>Cliente</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1d1e' }}>Cliente</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Link
+                  href={`/dashboard/clientes/${cliente.id}`}
+                  style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'none' }}
+                >
+                  Ver ficha →
+                </Link>
+                {!isEditingCliente
+                  ? editarProyectos && (
+                      <button
+                        onClick={openClienteEdit}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        <IconPencil size={13} /> Editar
+                      </button>
+                    )
+                  : (
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button
+                        onClick={handleSaveCliente}
+                        disabled={savingCliente}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#3b6d11', background: 'none', border: 'none', cursor: 'pointer', opacity: savingCliente ? 0.6 : 1 }}
+                      >
+                        <IconCheck size={13} /> {savingCliente ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setIsEditingCliente(false)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        <IconX size={13} /> Cancelar
+                      </button>
+                    </div>
+                  )
+                }
+              </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <span style={fieldLabel}>Razón social</span>
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#1a1d1e' }}>{proyecto.cliente.razon_social}</span>
+                {isEditingCliente ? (
+                  <select
+                    value={clienteIdForm}
+                    onChange={(e) => setClienteIdForm(e.target.value)}
+                    disabled={loadingClientes}
+                    style={{ ...inputStyle, cursor: loadingClientes ? 'wait' : 'pointer' }}
+                  >
+                    {loadingClientes
+                      ? <option>Cargando clientes...</option>
+                      : clientesList.map((c) => (
+                          <option key={c.id} value={c.id}>{c.razon_social}</option>
+                        ))
+                    }
+                  </select>
+                ) : (
+                  <span style={{ fontSize: 13, fontWeight: 500, color: '#1a1d1e' }}>{cliente.razon_social}</span>
+                )}
               </div>
               <div>
                 <span style={fieldLabel}>RUC</span>
-                <span style={{ fontSize: 13, color: '#1a1d1e', fontFamily: 'monospace' }}>{proyecto.cliente.ruc}</span>
+                <span style={{ fontSize: 13, color: '#1a1d1e', fontFamily: 'monospace' }}>{cliente.ruc}</span>
               </div>
               <div>
                 <span style={fieldLabel}>Sector</span>
-                <span style={{ fontSize: 13, color: '#1a1d1e' }}>{proyecto.cliente.sector}</span>
+                <span style={{ fontSize: 13, color: '#1a1d1e' }}>{cliente.sector}</span>
               </div>
 
-              {proyecto.cliente.contactos.length > 0 && (
+              {cliente.contactos.length > 0 && (
                 <div>
-                  <span style={fieldLabel}>Contacto{proyecto.cliente.contactos.length > 1 ? 's' : ''}</span>
+                  <span style={fieldLabel}>Contacto{cliente.contactos.length > 1 ? 's' : ''}</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                    {proyecto.cliente.contactos.map((c) => (
+                    {cliente.contactos.map((c) => (
                       <div key={c.id} style={{ padding: '9px 12px', backgroundColor: '#f9fafb', borderRadius: 8, border: '0.5px solid #f0f1f3' }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: '#1a1d1e' }}>{c.nombre}</div>
                         <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{c.cargo}</div>
@@ -753,7 +851,7 @@ export default function ProyectoView({
                 </div>
               )}
 
-              {proyecto.cliente.contactos.length === 0 && (
+              {cliente.contactos.length === 0 && (
                 <p style={{ fontSize: 12, color: '#b0b7c3', margin: 0 }}>Sin contactos registrados</p>
               )}
             </div>
