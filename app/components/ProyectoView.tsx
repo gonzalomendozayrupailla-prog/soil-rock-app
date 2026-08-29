@@ -975,6 +975,7 @@ export default function ProyectoView({
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
           clienteNombre={proyecto.cliente.razon_social}
+          proyectoUbicacion={ubicacion}
         />
       )}
 
@@ -984,6 +985,7 @@ export default function ProyectoView({
           proyectoId={proyecto.id}
           proyectoNombre={nombre}
           clienteNombre={proyecto.cliente.razon_social}
+          proyectoUbicacion={ubicacion}
         />
       )}
 

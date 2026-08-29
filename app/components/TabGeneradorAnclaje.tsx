@@ -129,10 +129,12 @@ export default function TabGeneradorAnclaje({
   proyectoId,
   proyectoNombre,
   clienteNombre,
+  proyectoUbicacion = '',
 }: {
   proyectoId: string
   proyectoNombre: string
   clienteNombre: string
+  proyectoUbicacion?: string
 }) {
   const [view, setView] = useState<'list' | 'form'>('list')
   const [reportes, setReportes] = useState<ReporteResumen[]>([])
@@ -176,7 +178,7 @@ export default function TabGeneradorAnclaje({
 
   function openNew() {
     setEditingId(null)
-    setForm({ ...defaultForm, fecha: new Date().toISOString().slice(0, 10) })
+    setForm({ ...defaultForm, fecha: new Date().toISOString().slice(0, 10), ubicacion: proyectoUbicacion })
     setFilas([newAnclajeRow()])
     setLogoSrFile(null); setLogoSrPreview(null); setLogoSrPath(null)
     setLogoClienteFile(null); setLogoClientePreview(null); setLogoClientePath(null)

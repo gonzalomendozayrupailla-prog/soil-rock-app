@@ -69,9 +69,9 @@ async function blobToBase64(blob: Blob): Promise<string> {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TabGeneradorMallas({
-  proyectoId, proyectoNombre, clienteNombre,
+  proyectoId, proyectoNombre, clienteNombre, proyectoUbicacion = '',
 }: {
-  proyectoId: string; proyectoNombre: string; clienteNombre: string
+  proyectoId: string; proyectoNombre: string; clienteNombre: string; proyectoUbicacion?: string
 }) {
   const [view, setView] = useState<'list' | 'form'>('list')
   const [reportes, setReportes] = useState<ReporteResumen[]>([])
@@ -130,7 +130,7 @@ export default function TabGeneradorMallas({
 
   function openNew() {
     setEditingId(null)
-    setForm({ ...defaultForm })
+    setForm({ ...defaultForm, ubicacion: proyectoUbicacion })
     resetImages()
     setError('')
     setView('form')
