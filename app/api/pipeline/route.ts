@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
-import { requireAuth } from '@/app/lib/auth'
+import { requireAuth, requirePermiso } from '@/app/lib/auth'
 
 const FASES_PIPELINE = ['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa'] as const
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth(req)
+  const { session, error } = await requireAuth(req)
   if (error) return error
+  const permError = requirePermiso(session, 'ver_comercial')
+  if (permError) return permError
 
   const { searchParams } = req.nextUrl
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
@@ -38,10 +39,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+    const permError = requirePermiso(session, 'ver_comercial')
+    if (permError) return permError
 
     const body = await req.json()
     const { nombre, cliente_id, sector, monto_contrato, fecha_inicio, moneda, ubicacion } = body

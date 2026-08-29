@@ -7,8 +7,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth(req)
+    const { session, error } = await requireAuth(req)
     if (error) return error
+
+    if (session.rol !== 'gerente' && session.permisos['editar_proyectos'] !== true) {
+      return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    }
 
     const { id } = await params
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
+import { requireAuth, requirePermiso } from '@/app/lib/auth'
 
 const FASES_VALIDAS = [
   'pre_proyecto', 'propuesta', 'negociacion', 'adjudicado',
@@ -12,10 +12,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+    const permError = requirePermiso(session, 'ver_comercial')
+    if (permError) return permError
 
     const { id } = await params
     const { fase, monto_contrato } = await req.json()

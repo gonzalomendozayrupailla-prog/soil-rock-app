@@ -8,7 +8,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth(req)
+    const { session, error } = await requireAuth(req)
     if (error) return error
 
     const { id } = await params
@@ -17,6 +17,11 @@ export async function DELETE(
     if (!documento) {
       return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
     }
+
+    const canDelete = session.rol === 'gerente'
+      || session.permisos['subir_documentos'] === true
+      || documento.subido_por === session.id
+    if (!canDelete) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
 
     // Extraer la ruta en Storage desde la URL pública
     const marker = `/storage/v1/object/public/${BUCKET}/`
@@ -39,10 +44,17 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth(req)
+    const { session, error } = await requireAuth(req)
     if (error) return error
 
     const { id } = await params
+    const docActual = await prisma.documento.findUnique({ where: { id }, select: { subido_por: true } })
+    if (!docActual) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
+    const canEdit = session.rol === 'gerente'
+      || session.permisos['subir_documentos'] === true
+      || docActual.subido_por === session.id
+    if (!canEdit) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+
     const body = await req.json()
 
     const documento = await prisma.documento.update({

@@ -17,7 +17,8 @@ export async function requireAuth(req: NextRequest): Promise<
 }
 
 export function requirePermiso(session: SessionPayload, permiso: string): NextResponse | null {
-  if (session.permisos[permiso] === false) {
+  if (session.rol === 'gerente') return null
+  if (session.permisos[permiso] !== true) {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
   return null

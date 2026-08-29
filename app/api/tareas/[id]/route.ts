@@ -43,11 +43,22 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth(req)
+    const { session, error } = await requireAuth(req)
     if (error) return error
 
     const { id } = await params
     const body = await req.json()
+
+    const tareaExistente = await prisma.tarea.findUnique({
+      where: { id },
+      select: { creado_por: true, asignado_a: true },
+    })
+    if (!tareaExistente) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    const canEdit = session.rol === 'gerente'
+      || session.permisos['editar_proyectos'] === true
+      || tareaExistente.creado_por === session.id
+      || tareaExistente.asignado_a === session.id
+    if (!canEdit) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
 
     const data: Record<string, unknown> = {}
     if (body.titulo !== undefined)       data.titulo = body.titulo
@@ -87,11 +98,20 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth(req)
+    const { session, error } = await requireAuth(req)
     if (error) return error
 
     const { id } = await params
-    const tarea = await prisma.tarea.findUnique({ where: { id }, select: { proyecto_id: true } })
+    const tarea = await prisma.tarea.findUnique({
+      where: { id },
+      select: { proyecto_id: true, creado_por: true, asignado_a: true },
+    })
+    if (!tarea) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    const canDelete = session.rol === 'gerente'
+      || session.permisos['editar_proyectos'] === true
+      || tarea.creado_por === session.id
+      || tarea.asignado_a === session.id
+    if (!canDelete) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
     await prisma.tarea.delete({ where: { id } })
     if (tarea) await recalcularAvance(tarea.proyecto_id)
     return NextResponse.json({ ok: true })
