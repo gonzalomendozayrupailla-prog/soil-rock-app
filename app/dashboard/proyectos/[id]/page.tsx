@@ -71,6 +71,7 @@ export default async function ProyectoPage({
         telefono: c.telefono,
       })),
     },
+    ubicacion: proyecto.ubicacion ?? null,
     ingeniero: proyecto.ingeniero,
   }
 

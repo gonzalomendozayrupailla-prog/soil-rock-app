@@ -146,8 +146,8 @@ export default async function DashboardPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get('token')?.value
   const session = token ? await verifyToken(token) : null
-  const verMontos   = session?.permisos?.ver_montos   !== false
-  const verComercial = session?.permisos?.ver_comercial !== false
+  const verMontos    = session?.rol === 'gerente' || session?.permisos?.ver_montos    === true
+  const verComercial = session?.rol === 'gerente' || session?.permisos?.ver_comercial === true
 
   const PIPELINE_FASES = ['pre_proyecto', 'propuesta', 'negociacion', 'adjudicado', 'en_pausa'] as const
   const OP_FASES       = ['adjudicado', 'ejecucion', 'cierre'] as const
