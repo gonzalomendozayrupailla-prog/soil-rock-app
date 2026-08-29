@@ -526,6 +526,17 @@ model Garantia {
   @@map("garantias")
 }
 
+// Configuracion
+
+model ConfiguracionEmpresa {
+  id           String   @id @default(cuid())
+  razon_social String
+  ruc          String
+  updated_at   DateTime @updatedAt
+
+  @@map("configuracion_empresa")
+}
+
 // Auditoria
 
 model AuditoriaLog {
