@@ -50,7 +50,6 @@ export async function PATCH(
     if (body.moneda !== undefined)                data.moneda = body.moneda
     if (body.monto_contrato !== undefined)        data.monto_contrato = body.monto_contrato
     if (body.fase !== undefined)                  data.fase = body.fase
-    if (body.avance_general !== undefined)        data.avance_general = Number(body.avance_general)
     if (body.fecha_inicio !== undefined)          data.fecha_inicio = new Date(body.fecha_inicio)
     if (body.fecha_cierre_estimada !== undefined) data.fecha_cierre_estimada = new Date(body.fecha_cierre_estimada)
     if (body.ubicacion !== undefined)             data.ubicacion = body.ubicacion || null
@@ -91,7 +90,6 @@ export async function PUT(
         fecha_inicio: new Date(body.fecha_inicio),
         fecha_cierre_estimada: new Date(body.fecha_cierre_estimada),
         monto_contrato: body.monto_contrato,
-        avance_general: body.avance_general,
       },
     })
     return NextResponse.json(proyecto)
