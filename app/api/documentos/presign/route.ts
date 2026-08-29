@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/app/lib/session'
+import { prisma } from '@/app/lib/prisma'
 import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
-import { isAllowedExtension } from '@/app/lib/auth'
+import { requireAuth, requirePermiso, isAllowedExtension } from '@/app/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+
+    const permError = requirePermiso(session, 'subir_documentos')
+    if (permError) return permError
 
     const { filename, proyectoId, fileSize } = await req.json()
     if (!filename || !proyectoId) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+    }
+
+    const proyectoExiste = await prisma.proyecto.findUnique({ where: { id: proyectoId }, select: { id: true } })
+    if (!proyectoExiste) {
+      return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
     }
 
     const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
@@ -37,12 +43,12 @@ export async function POST(req: NextRequest) {
       .slice(0, 80)
     const path = `${proyectoId}/${Date.now()}-${safeName}.${ext}`
 
-    const { data, error } = await getSupabaseAdmin().storage
+    const { data, error: uploadError } = await getSupabaseAdmin().storage
       .from(BUCKET)
       .createSignedUploadUrl(path)
 
-    if (error || !data) {
-      console.error('[presign] error al generar URL:', error)
+    if (uploadError || !data) {
+      console.error('[presign] error al generar URL:', uploadError)
       return NextResponse.json({ error: 'Error al generar URL de subida' }, { status: 500 })
     }
 

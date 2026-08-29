@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
+import { requireAuth } from '@/app/lib/auth'
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session || session.rol !== 'gerente') {
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+    if (session.rol !== 'gerente') {
       return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
     }
 
@@ -24,10 +23,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session || session.rol !== 'gerente') {
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+    if (session.rol !== 'gerente') {
       return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
     }
 

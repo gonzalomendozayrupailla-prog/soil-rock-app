@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
 import { getSupabaseAdmin, BUCKET } from "@/app/lib/supabase"
-import { requireAuth, isAllowedExtension } from '@/app/lib/auth'
+import { requireAuth, requirePermiso, isAllowedExtension } from '@/app/lib/auth'
 
 export async function GET(
   req: NextRequest,
@@ -29,13 +28,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: proyecto_id } = await params
+    const { session, error } = await requireAuth(req)
+    if (error) return error
 
-    // Verificar sesión
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const permError = requirePermiso(session, 'subir_documentos')
+    if (permError) return permError
+
+    const { id: proyecto_id } = await params
 
     // Verificar que el proyecto existe
     const proyecto = await prisma.proyecto.findUnique({ where: { id: proyecto_id } })

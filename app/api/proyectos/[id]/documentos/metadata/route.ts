@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
-import { requirePermiso } from '@/app/lib/auth'
+import { requireAuth, requirePermiso } from '@/app/lib/auth'
 
 const ESTADOS_VALIDOS = [
   'borrador', 'enviado_cliente', 'con_observaciones',
@@ -15,10 +14,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { session, error } = await requireAuth(req)
+    if (error) return error
 
     const permError = requirePermiso(session, 'subir_documentos')
     if (permError) return permError

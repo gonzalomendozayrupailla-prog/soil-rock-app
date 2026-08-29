@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
-import { verifyToken } from '@/app/lib/session'
-import { requireAuth } from '@/app/lib/auth'
+import { requireAuth, requirePermiso } from '@/app/lib/auth'
 
 export async function GET(
   req: NextRequest,
@@ -28,10 +27,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    const session = await verifyToken(token)
-    if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const { session, error } = await requireAuth(req)
+    if (error) return error
+
+    const permError = requirePermiso(session, 'editar_reportes_campo')
+    if (permError) return permError
 
     const { id: proyecto_id } = await params
     const body = await req.json()
@@ -40,13 +40,7 @@ export async function POST(
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
     }
 
-    let usuario_id = session.id
-    const existe = await prisma.usuario.findUnique({ where: { id: usuario_id } })
-    if (!existe) {
-      const primero = await prisma.usuario.findFirst({ where: { activo: true } })
-      if (!primero) return NextResponse.json({ error: 'Sin usuarios' }, { status: 500 })
-      usuario_id = primero.id
-    }
+    const usuario_id = session.id
 
     const reporte = await prisma.reporteCampo.create({
       data: {
