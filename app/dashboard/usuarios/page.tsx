@@ -51,6 +51,7 @@ export default function UsuariosPage() {
   const [editingPermisos, setEditingPermisos] = useState<Record<string, boolean>>({})
   const [deleteModal, setDeleteModal] = useState<{ id: string; nombre: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // Form nuevo usuario
   const [form, setForm] = useState({
@@ -119,11 +120,15 @@ export default function UsuariosPage() {
   async function handleDelete() {
     if (!deleteModal) return
     setDeleting(true)
+    setDeleteError('')
     try {
       const res = await fetch(`/api/usuarios/${deleteModal.id}`, { method: 'DELETE' })
       if (res.ok) {
         setUsuarios((prev) => prev.filter((u) => u.id !== deleteModal.id))
         setDeleteModal(null)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError(data.error || 'Error al eliminar usuario')
       }
     } finally {
       setDeleting(false)
@@ -266,7 +271,7 @@ export default function UsuariosPage() {
                       {u.activo ? 'Desactivar' : 'Activar'}
                     </button>
                     <button
-                      onClick={() => setDeleteModal({ id: u.id, nombre: u.nombre })}
+                      onClick={() => { setDeleteModal({ id: u.id, nombre: u.nombre }); setDeleteError('') }}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', border: 'none', backgroundColor: '#fcebeb', color: '#a32d2d' }}
                     >
                       <IconTrash size={12} /> Eliminar
@@ -318,9 +323,14 @@ export default function UsuariosPage() {
           <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1d1e', margin: '0 0 10px' }}>
             Eliminar usuario
           </h3>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 24px', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 16px', lineHeight: 1.5 }}>
             ¿Estás seguro que deseas eliminar a <strong>{deleteModal.nombre}</strong>? Esta acción no se puede deshacer.
           </p>
+          {deleteError && (
+            <p style={{ fontSize: 12, color: '#a32d2d', backgroundColor: '#fcebeb', border: '1px solid #f5c6c6', borderRadius: 6, padding: '8px 12px', margin: '0 0 16px', lineHeight: 1.5 }}>
+              {deleteError}
+            </p>
+          )}
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={handleDelete}
@@ -330,7 +340,7 @@ export default function UsuariosPage() {
               {deleting ? 'Eliminando...' : 'Sí, eliminar'}
             </button>
             <button
-              onClick={() => setDeleteModal(null)}
+              onClick={() => { setDeleteModal(null); setDeleteError('') }}
               disabled={deleting}
               style={{ flex: 1, fontSize: 13, padding: '9px 0', color: '#6b7280', border: '0.5px solid #e8eaed', borderRadius: 8, background: 'none', cursor: 'pointer' }}
             >

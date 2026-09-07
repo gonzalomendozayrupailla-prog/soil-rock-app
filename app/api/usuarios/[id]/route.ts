@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
+import { Prisma } from '@/app/generated/prisma/client'
 import { requireAuth } from '@/app/lib/auth'
 
 export async function PATCH(
@@ -55,6 +56,12 @@ export async function DELETE(
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[DELETE /api/usuarios/[id]]', err)
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err as Prisma.PrismaClientKnownRequestError).code === 'P2003') {
+      return NextResponse.json(
+        { error: 'No se puede eliminar: el usuario tiene proyectos, documentos o tareas asociados. Desactívalo en su lugar.' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json({ error: 'Error al eliminar usuario' }, { status: 500 })
   }
 }

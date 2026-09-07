@@ -549,7 +549,7 @@ model AuditoriaLog {
   ip          String?
   created_at  DateTime @default(now())
 
-  usuario Usuario @relation("AuditoriaLogs", fields: [usuario_id], references: [id])
+  usuario Usuario @relation("AuditoriaLogs", fields: [usuario_id], references: [id], onDelete: Cascade)
 
   @@map("auditoria_logs")
 }
